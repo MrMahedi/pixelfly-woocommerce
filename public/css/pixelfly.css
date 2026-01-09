@@ -1,0 +1,9 @@
+/**
+ * PixelFly Frontend Styles
+ * Minimal styles for tracking components
+ */
+
+/* Hidden UTM fields container */
+#pixelfly-utm-fields {
+    display: none !important;
+}

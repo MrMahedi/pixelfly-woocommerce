@@ -1,0 +1,100 @@
+/**
+ * PixelFly Admin Styles
+ */
+
+/* Settings Page */
+.pixelfly-settings .pixelfly-card {
+  background: #fff;
+  border: 1px solid #ccd0d4;
+  border-radius: 4px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
+}
+
+.pixelfly-settings .pixelfly-card h2 {
+  margin-top: 0;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #eee;
+  font-size: 1.3em;
+}
+
+.pixelfly-settings .form-table th {
+  width: 200px;
+  padding: 15px 10px 15px 0;
+}
+
+.pixelfly-settings .form-table td {
+  padding: 15px 10px;
+}
+
+.pixelfly-settings .form-table input[type="text"],
+.pixelfly-settings .form-table input[type="url"] {
+  width: 400px;
+  max-width: 100%;
+}
+
+/* Test Connection Result */
+#pixelfly-test-result {
+  display: inline-block;
+  padding: 5px 10px;
+  border-radius: 3px;
+}
+
+#pixelfly-test-result.success {
+  color: #46b450;
+  background: #ecf7ed;
+}
+
+#pixelfly-test-result.error {
+  color: #dc3232;
+  background: #fbeaea;
+}
+
+/* Pending Events Page */
+.pixelfly-pending-events .tablenav {
+  margin-bottom: 15px;
+}
+
+.pixelfly-pending-events .wp-list-table {
+  background: #fff;
+}
+
+.pixelfly-pending-events .wp-list-table th {
+  font-weight: 600;
+}
+
+.pixelfly-pending-events .wp-list-table td {
+  vertical-align: middle;
+}
+
+.pixelfly-pending-events .button-small {
+  margin-right: 5px;
+}
+
+/* Responsive */
+@media screen and (max-width: 782px) {
+  .pixelfly-stats {
+    flex-wrap: wrap;
+  }
+
+  .pixelfly-stats .stat-box {
+    flex: 1 1 45%;
+  }
+
+  .pixelfly-settings .form-table th {
+    width: 100%;
+    display: block;
+    padding-bottom: 5px;
+  }
+
+  .pixelfly-settings .form-table td {
+    display: block;
+    padding-top: 0;
+  }
+
+  .pixelfly-settings .form-table input[type="text"],
+  .pixelfly-settings .form-table input[type="url"] {
+    width: 100%;
+  }
+}
