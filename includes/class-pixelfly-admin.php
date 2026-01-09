@@ -92,6 +92,7 @@ class PixelFly_Admin
 
         // DataLayer settings
         register_setting('pixelfly_settings', 'pixelfly_datalayer_enabled');
+        register_setting('pixelfly_settings', 'pixelfly_gtm_container_id');
 
         // Delayed events settings
         register_setting('pixelfly_settings', 'pixelfly_delayed_enabled');

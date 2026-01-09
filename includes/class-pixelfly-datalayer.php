@@ -22,8 +22,14 @@ class PixelFly_DataLayer
             return;
         }
 
+        // Inject GTM script in head (priority 1 - before other scripts)
+        add_action('wp_head', [$this, 'inject_gtm_head'], 1);
+
         // Initialize dataLayer on every page
-        add_action('wp_head', [$this, 'init_datalayer'], 1);
+        add_action('wp_head', [$this, 'init_datalayer'], 2);
+
+        // Inject GTM noscript in body
+        add_action('wp_body_open', [$this, 'inject_gtm_body'], 1);
 
         // Page-specific events using WooCommerce hooks
         add_action('woocommerce_after_single_product', [$this, 'view_item_event']);
@@ -34,6 +40,53 @@ class PixelFly_DataLayer
 
         // Checkout step events
         add_action('woocommerce_checkout_after_customer_details', [$this, 'checkout_progress_script']);
+    }
+
+    /**
+     * Inject GTM head script
+     */
+    public function inject_gtm_head()
+    {
+        $gtm_id = get_option('pixelfly_gtm_container_id', '');
+        if (empty($gtm_id)) {
+            return;
+        }
+
+        // Validate GTM ID format (GTM-XXXXXX)
+        if (!preg_match('/^GTM-[A-Z0-9]+$/i', $gtm_id)) {
+            return;
+        }
+        ?>
+        <!-- Google Tag Manager (injected by PixelFly) -->
+        <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+        new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+        j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+        'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+        })(window,document,'script','dataLayer','<?php echo esc_js($gtm_id); ?>');</script>
+        <!-- End Google Tag Manager -->
+        <?php
+    }
+
+    /**
+     * Inject GTM noscript in body
+     */
+    public function inject_gtm_body()
+    {
+        $gtm_id = get_option('pixelfly_gtm_container_id', '');
+        if (empty($gtm_id)) {
+            return;
+        }
+
+        // Validate GTM ID format (GTM-XXXXXX)
+        if (!preg_match('/^GTM-[A-Z0-9]+$/i', $gtm_id)) {
+            return;
+        }
+        ?>
+        <!-- Google Tag Manager (noscript) - injected by PixelFly -->
+        <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=<?php echo esc_attr($gtm_id); ?>"
+        height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+        <!-- End Google Tag Manager (noscript) -->
+        <?php
     }
 
     /**

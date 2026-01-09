@@ -12,6 +12,7 @@ $enabled = get_option('pixelfly_enabled', true);
 $api_key = get_option('pixelfly_api_key', '');
 $endpoint = get_option('pixelfly_endpoint', 'https://track.pixelfly.io/e');
 $datalayer_enabled = get_option('pixelfly_datalayer_enabled', true);
+$gtm_container_id = get_option('pixelfly_gtm_container_id', '');
 $delayed_enabled = get_option('pixelfly_delayed_enabled', true);
 $delayed_methods = get_option('pixelfly_delayed_payment_methods', ['cod']);
 $delayed_statuses = get_option('pixelfly_delayed_fire_on_status', ['processing', 'completed']);
@@ -88,6 +89,15 @@ $order_statuses = PixelFly_Admin::get_order_statuses();
                             <?php esc_html_e('Output GA4-compatible dataLayer events for GTM', 'pixelfly-woocommerce'); ?>
                         </label>
                         <p class="description"><?php esc_html_e('Enable this if you want to use the events with Google Tag Manager.', 'pixelfly-woocommerce'); ?></p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row">
+                        <label for="pixelfly_gtm_container_id"><?php esc_html_e('GTM Container ID', 'pixelfly-woocommerce'); ?></label>
+                    </th>
+                    <td>
+                        <input type="text" id="pixelfly_gtm_container_id" name="pixelfly_gtm_container_id" value="<?php echo esc_attr($gtm_container_id); ?>" class="regular-text" placeholder="GTM-XXXXXXX">
+                        <p class="description"><?php esc_html_e('Enter your Google Tag Manager container ID (e.g., GTM-ABC123). PixelFly will automatically inject the GTM script if provided.', 'pixelfly-woocommerce'); ?></p>
                     </td>
                 </tr>
             </table>
