@@ -14,6 +14,54 @@ class PixelFly_User_Data
 {
 
     /**
+     * Initialize user data handling
+     * Sets _fbc cookie from fbclid URL parameter
+     */
+    public static function init()
+    {
+        // Only run on frontend, not admin
+        if (is_admin()) {
+            return;
+        }
+
+        // Set _fbc cookie from fbclid if not already set
+        self::maybe_set_fbc_cookie();
+    }
+
+    /**
+     * Set _fbc cookie from fbclid URL parameter
+     * Must be called before headers are sent
+     */
+    public static function maybe_set_fbc_cookie()
+    {
+        // Check if _fbc cookie already exists
+        if (!empty($_COOKIE['_fbc'])) {
+            return;
+        }
+
+        // Check for fbclid in URL
+        $fbclid = isset($_GET['fbclid']) ? sanitize_text_field($_GET['fbclid']) : '';
+        if (empty($fbclid)) {
+            return;
+        }
+
+        // Don't set cookie if headers already sent
+        if (headers_sent()) {
+            return;
+        }
+
+        // Generate _fbc value: fb.{subdomain_index}.{creation_time}.{fbclid}
+        $fbc = 'fb.1.' . (time() * 1000) . '.' . $fbclid;
+
+        // Set cookie for 90 days (same as Meta Pixel)
+        $expire = time() + (90 * 24 * 60 * 60);
+        setcookie('_fbc', $fbc, $expire, '/', '', is_ssl(), false);
+
+        // Also set in $_COOKIE for immediate availability in this request
+        $_COOKIE['_fbc'] = $fbc;
+    }
+
+    /**
      * Get current user data for tracking
      *
      * @return array User data with available fields

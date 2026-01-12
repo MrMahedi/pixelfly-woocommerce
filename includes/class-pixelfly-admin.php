@@ -102,6 +102,7 @@ class PixelFly_Admin
         // Advanced settings
         register_setting('pixelfly_settings', 'pixelfly_debug_mode');
         register_setting('pixelfly_settings', 'pixelfly_event_logging');
+        register_setting('pixelfly_settings', 'pixelfly_excluded_roles');
     }
 
     /**

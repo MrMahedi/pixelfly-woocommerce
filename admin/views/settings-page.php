@@ -18,9 +18,11 @@ $delayed_methods = get_option('pixelfly_delayed_payment_methods', ['cod']);
 $delayed_statuses = get_option('pixelfly_delayed_fire_on_status', ['processing', 'completed']);
 $debug_mode = get_option('pixelfly_debug_mode', false);
 $event_logging = get_option('pixelfly_event_logging', false);
+$excluded_roles = get_option('pixelfly_excluded_roles', []);
 
 $payment_methods = PixelFly_Admin::get_payment_methods();
 $order_statuses = PixelFly_Admin::get_order_statuses();
+$all_roles = wp_roles()->get_names();
 ?>
 
 <div class="wrap pixelfly-settings">
@@ -174,6 +176,18 @@ $order_statuses = PixelFly_Admin::get_order_statuses();
                             <?php esc_html_e('Log all events to database for debugging', 'pixelfly-woocommerce'); ?>
                         </label>
                         <p class="description"><?php esc_html_e('Enable only for debugging. This will increase database size.', 'pixelfly-woocommerce'); ?></p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><?php esc_html_e('Exclude User Roles', 'pixelfly-woocommerce'); ?></th>
+                    <td>
+                        <?php foreach ($all_roles as $role_key => $role_name): ?>
+                            <label style="display: block; margin-bottom: 5px;">
+                                <input type="checkbox" name="pixelfly_excluded_roles[]" value="<?php echo esc_attr($role_key); ?>" <?php checked(in_array($role_key, (array) $excluded_roles)); ?>>
+                                <?php echo esc_html($role_name); ?>
+                            </label>
+                        <?php endforeach; ?>
+                        <p class="description"><?php esc_html_e('Disable tracking for users with these roles. Useful for excluding administrators and shop managers from analytics.', 'pixelfly-woocommerce'); ?></p>
                     </td>
                 </tr>
             </table>

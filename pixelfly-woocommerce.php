@@ -72,6 +72,42 @@ final class PixelFly_WooCommerce
 
         // Load textdomain
         add_action('init', [$this, 'load_textdomain']);
+
+        // Set Facebook _fbc cookie early (before headers sent)
+        // Priority 1 to run before most other init hooks
+        add_action('init', [$this, 'init_facebook_cookies'], 1);
+
+        // Declare HPOS compatibility
+        add_action('before_woocommerce_init', [$this, 'declare_hpos_compatibility']);
+    }
+
+    /**
+     * Initialize Facebook cookies (_fbc from fbclid)
+     * Must run early before headers are sent
+     */
+    public function init_facebook_cookies()
+    {
+        // Only on frontend
+        if (is_admin()) {
+            return;
+        }
+
+        // Load user data class if not already loaded
+        if (!class_exists('PixelFly_User_Data')) {
+            require_once PIXELFLY_WC_PLUGIN_DIR . 'includes/class-pixelfly-user-data.php';
+        }
+
+        PixelFly_User_Data::init();
+    }
+
+    /**
+     * Declare compatibility with WooCommerce High-Performance Order Storage (HPOS)
+     */
+    public function declare_hpos_compatibility()
+    {
+        if (class_exists('\Automattic\WooCommerce\Utilities\FeaturesUtil')) {
+            \Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility('custom_order_tables', __FILE__, true);
+        }
     }
 
     /**
@@ -92,8 +128,13 @@ final class PixelFly_WooCommerce
             new PixelFly_Admin();
         }
 
-        if ($this->is_enabled()) {
+        // DataLayer works independently (for GTM) - only requires datalayer_enabled
+        if (get_option('pixelfly_datalayer_enabled', true)) {
             new PixelFly_DataLayer();
+        }
+
+        // Server-side tracking requires API key
+        if ($this->is_enabled()) {
             new PixelFly_Tracker();
             new PixelFly_Delayed();
             new PixelFly_UTM_Capture();
