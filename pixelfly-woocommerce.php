@@ -4,7 +4,7 @@
  * Plugin Name: PixelFly for WooCommerce
  * Plugin URI: https://pixelfly.io
  * Description: Server-side event tracking for Meta CAPI & GA4 via PixelFly. Includes dataLayer support and delayed purchase events for COD orders.
- * Version: 1.0.0
+ * Version: 1.1.0
  * Author: PixelFly
  * Author URI: https://pixelfly.io
  * Text Domain: pixelfly-woocommerce
@@ -22,7 +22,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Plugin constants
-define('PIXELFLY_WC_VERSION', '1.0.0');
+define('PIXELFLY_WC_VERSION', '1.1.0');
 define('PIXELFLY_WC_PLUGIN_FILE', __FILE__);
 define('PIXELFLY_WC_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('PIXELFLY_WC_PLUGIN_URL', plugin_dir_url(__FILE__));
@@ -128,6 +128,14 @@ final class PixelFly_WooCommerce
             new PixelFly_Admin();
         }
 
+        // Initialize Consent Mode V2 (must be before GTM/DataLayer)
+        // This sets consent defaults before any tracking scripts load
+        PixelFly_Consent::get_instance();
+
+        // Initialize Custom Loader (stealth GTM via first-party domain)
+        // This replaces standard GTM injection when enabled
+        PixelFly_Custom_Loader::get_instance();
+
         // DataLayer works independently (for GTM) - only requires datalayer_enabled
         if (get_option('pixelfly_datalayer_enabled', true)) {
             new PixelFly_DataLayer();
@@ -154,6 +162,8 @@ final class PixelFly_WooCommerce
         require_once PIXELFLY_WC_PLUGIN_DIR . 'includes/class-pixelfly-tracker.php';
         require_once PIXELFLY_WC_PLUGIN_DIR . 'includes/class-pixelfly-delayed.php';
         require_once PIXELFLY_WC_PLUGIN_DIR . 'includes/class-pixelfly-utm-capture.php';
+        require_once PIXELFLY_WC_PLUGIN_DIR . 'includes/class-pixelfly-consent.php';
+        require_once PIXELFLY_WC_PLUGIN_DIR . 'includes/class-pixelfly-custom-loader.php';
     }
 
     /**

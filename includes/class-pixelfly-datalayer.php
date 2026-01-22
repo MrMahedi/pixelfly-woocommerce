@@ -137,6 +137,13 @@ class PixelFly_DataLayer
      */
     public function inject_gtm_head()
     {
+        // Check if Custom Loader is handling GTM injection
+        $use_standard_gtm = apply_filters('pixelfly_use_standard_gtm', true);
+        if (!$use_standard_gtm) {
+            // Custom Loader is handling GTM, skip standard injection
+            return;
+        }
+
         $gtm_id = get_option('pixelfly_gtm_container_id', '');
         if (empty($gtm_id)) {
             return;
@@ -168,6 +175,18 @@ class PixelFly_DataLayer
         static $injected = false;
         if ($injected) {
             return;
+        }
+
+        // Check if Custom Loader is handling GTM injection
+        $use_standard_gtm = apply_filters('pixelfly_use_standard_gtm', true);
+        if (!$use_standard_gtm) {
+            // Custom Loader handles its own noscript fallback
+            $custom_loader = class_exists('PixelFly_Custom_Loader') ? PixelFly_Custom_Loader::get_instance() : null;
+            if ($custom_loader && $custom_loader->is_enabled()) {
+                echo $custom_loader->get_noscript_iframe();
+                $injected = true;
+                return;
+            }
         }
 
         $gtm_id = get_option('pixelfly_gtm_container_id', '');

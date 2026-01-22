@@ -1,7 +1,7 @@
 # PixelFly WooCommerce Plugin - Architecture & Data Flow
 
-**Version:** 1.0.0
-**Last Updated:** January 10, 2026
+**Version:** 1.1.0
+**Last Updated:** January 22, 2026
 
 ## Overview
 
@@ -19,6 +19,8 @@ pixelfly-woocommerce/
 ├── includes/
 │   ├── class-pixelfly-admin.php      # Admin settings & AJAX handlers
 │   ├── class-pixelfly-api.php        # PixelFly API client (HTTP requests)
+│   ├── class-pixelfly-consent.php    # Consent Mode V2 (GDPR/CCPA) [NEW v1.1.0]
+│   ├── class-pixelfly-custom-loader.php # Custom Loader (ad blocker bypass) [NEW v1.1.0]
 │   ├── class-pixelfly-datalayer.php  # GTM dataLayer output (browser-side)
 │   ├── class-pixelfly-delayed.php    # Delayed purchase events (COD)
 │   ├── class-pixelfly-events.php     # Event data builders
@@ -213,9 +215,18 @@ pixelfly-woocommerce/
 - Extract data from logged-in user or order
 
 ### PixelFly_UTM_Capture
-- Capture UTM parameters from URL
-- Store in session/cookie
-- Attach to order meta on checkout
+- Capture UTM parameters from URL (utm_source, utm_medium, utm_campaign, utm_content, utm_term)
+- Capture Click IDs (fbclid, gclid, ttclid, li_fat_id, sccid, msclkid)
+- Store in session/cookie for persistence across pages
+- Add hidden fields in checkout form for submission
+- Attach to order meta on checkout for delayed event context
+
+### PixelFly_User_Data
+- Cookie capture: fbp, fbc, client_id, session_id (browser identifiers)
+- Auto-converts fbclid URL param to _fbc cookie (90-day expiry)
+- User data collection for enhanced matching (email, phone, name, address)
+- SHA-256 hashing for PII fields
+- Supports logged-in users and guest checkout data extraction
 
 ### pixelfly-woocommerce.js (Client-Side)
 - AJAX add to cart tracking (archive pages)
@@ -240,9 +251,20 @@ pixelfly-woocommerce/
 | Endpoint | `pixelfly_endpoint` | track.pixelfly.io/e | API URL |
 | Enable DataLayer | `pixelfly_datalayer_enabled` | true | GTM integration |
 | GTM Container ID | `pixelfly_gtm_container_id` | '' | Auto-inject GTM |
+| **Custom Loader** | | | |
+| Enable Custom Loader | `pixelfly_custom_loader_enabled` | false | Load GTM via proxy |
+| Custom Domain | `pixelfly_custom_loader_domain` | '' | First-party domain (e.g., t.yourstore.com) |
+| **Consent Mode V2** | | | |
+| Enable Consent | `pixelfly_consent_enabled` | false | Show consent banner |
+| Consent Mode | `pixelfly_consent_mode` | 'opt-in' | opt-in (GDPR) or opt-out (CCPA) |
+| Consent Region | `pixelfly_consent_region` | 'all' | 'all' or 'gdpr' (EU/EEA/UK only) |
+| Banner Position | `pixelfly_consent_position` | 'bottom' | top, bottom, bottom-left, bottom-right |
+| Banner Colors | `pixelfly_consent_btn_color`, `pixelfly_consent_bg_color`, `pixelfly_consent_text_color` | Blue/Dark/White | Customizable colors |
+| **Delayed Events** | | | |
 | Delayed Events | `pixelfly_delayed_enabled` | true | COD handling |
 | Delayed Methods | `pixelfly_delayed_payment_methods` | ['cod'] | Payment methods |
 | Fire on Status | `pixelfly_delayed_fire_on_status` | ['processing','completed'] | Trigger statuses |
+| **Advanced** | | | |
 | Debug Mode | `pixelfly_debug_mode` | false | Console logging |
 | Event Logging | `pixelfly_event_logging` | false | DB logging |
 | Excluded Roles | `pixelfly_excluded_roles` | [] | Skip tracking |
@@ -391,6 +413,260 @@ The plugin does NOT send all events to PixelFly API. Only COD/delayed purchase e
 
 ---
 
+## Consent Mode V2 (v1.1.0)
+
+Google Consent Mode V2 implementation for GDPR/CCPA compliance with customizable consent banner.
+
+### How It Works
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        CONSENT MODE V2 FLOW                                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│   1. Page Load - PixelFly_Consent sets consent defaults BEFORE GTM loads    │
+│      gtag('consent', 'default', { analytics_storage: 'denied', ... })       │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│   2. Check if banner should show:                                            │
+│      - Consent not already given (no cookie)?                               │
+│      - Region setting: 'all' OR visitor in GDPR country?                    │
+│      - Not admin page?                                                       │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                   ┌────────────────┴────────────────┐
+                   │                                 │
+                   ▼                                 ▼
+            Show Banner                        Don't Show
+                   │                           (Tracking OK)
+                   ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│   3. User Action:                                                            │
+│      • Accept All → Grant all consent signals                               │
+│      • Reject All → Deny all (except security_storage)                      │
+│      • Cookie Settings → Granular control                                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│   4. gtag('consent', 'update', { ... })                                     │
+│      Save to cookie (365 days) + dataLayer push                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Consent Signals
+
+| Signal | Description | Default (opt-in) |
+|--------|-------------|------------------|
+| `analytics_storage` | Google Analytics cookies | denied |
+| `ad_storage` | Advertising cookies | denied |
+| `ad_user_data` | Send user data for ads | denied |
+| `ad_personalization` | Personalized advertising | denied |
+| `functionality_storage` | Functional cookies | denied |
+| `personalization_storage` | Personalization cookies | denied |
+| `security_storage` | Security cookies | **granted** (always) |
+
+### Region Targeting
+
+| Setting | Behavior |
+|---------|----------|
+| `all` | Show consent banner to all visitors worldwide |
+| `gdpr` | Show only to visitors from GDPR countries (EU/EEA + UK) |
+
+**GDPR Countries (31):** AT, BE, BG, HR, CY, CZ, DK, EE, FI, FR, DE, GR, HU, IE, IT, LV, LT, LU, MT, NL, PL, PT, RO, SK, SI, ES, SE, IS, LI, NO, GB
+
+Uses WooCommerce geolocation (`WC_Geolocation::geolocate_ip()`) for country detection.
+
+### Class: PixelFly_Consent
+
+```php
+// Key methods:
+is_consent_enabled()      // Check if consent mode is enabled in settings
+should_show_banner()      // Region check + existing cookie check
+get_consent_state()       // Parse pixelfly_consent cookie (JSON)
+has_consent($type)        // Check specific consent type (analytics/marketing/personalization)
+inject_consent_defaults() // Output gtag consent defaults (wp_head, priority 0)
+render_consent_banner()   // Output consent banner HTML/CSS/JS (wp_footer)
+is_gdpr_country()         // Check if visitor from GDPR region
+get_visitor_country()     // Get country via WC_Geolocation::geolocate_ip()
+```
+
+### JavaScript API (pixelflyConsent object)
+
+```javascript
+// Available after page load
+window.pixelflyConsent = {
+    acceptAll: function() { ... },     // Grant all consent, save cookie, hide banner
+    rejectAll: function() { ... },     // Deny all (except security), save cookie, hide banner
+    showSettings: function() { ... },  // Show settings modal (checkboxes pre-checked)
+    saveSettings: function() { ... },  // Save selected options, update gtag, hide banner
+    hasConsent: function(type) { ... } // Check if user granted specific consent type
+};
+```
+
+### Cookie Format
+
+```javascript
+// Cookie name: pixelfly_consent
+// Expiry: 365 days
+// Value: JSON encoded object
+{
+    "analytics": true,        // analytics_storage
+    "marketing": true,        // ad_storage, ad_user_data
+    "personalization": true,  // ad_personalization, personalization_storage
+    "timestamp": 1737561600   // Unix timestamp when consent was given
+}
+```
+
+---
+
+## Custom Loader (v1.1.0)
+
+Load GTM/GA4/Meta Pixel scripts through a first-party domain to bypass ad blockers and improve tracking accuracy.
+
+### End-to-End Flow
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        CUSTOM LOADER END-TO-END FLOW                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+Standard GTM (blocked by ad blockers):
+  Browser → www.googletagmanager.com/gtm.js → BLOCKED by uBlock/AdGuard ❌
+
+Custom Loader (bypasses ad blockers):
+
+Step 1: WooCommerce Plugin (class-pixelfly-custom-loader.php)
+────────────────────────────────────────────────────────────
+  Hook: wp_head (priority 1)
+  - Outputs obfuscated GTM loader script
+  - Maps: id=GTM-XXX → c=XXX, l=dataLayer → d=pfData
+  - src="https://t.yourstore.com/pf.js?c=XXX&d=pfData"
+                                    │
+                                    ▼
+Step 2: Cloudflare Worker Routing (src/index.ts)
+────────────────────────────────────────────────
+  - isProxyRoute('/pf.js') → true
+  - handleScriptProxy(request, ctx)
+                                    │
+                                    ▼
+Step 3: Script Proxy (src/proxy/index.ts)
+─────────────────────────────────────────
+  a. Reverse-map parameters:
+     - c=XXX → id=GTM-XXX (restore prefix)
+     - d=pfData → l=dataLayer (restore name)
+
+  b. Check edge cache (1-hour TTL):
+     - Cache key = TARGET URL (shared across customers)
+     - HIT → Skip to URL rewriting
+     - MISS → Fetch from origin
+
+  c. Fetch from origin:
+     GET https://www.googletagmanager.com/gtm.js?id=GTM-XXX
+     Store in edge cache via ctx.waitUntil()
+
+  d. URL Rewriting (rewriteScriptUrls):
+     All internal URLs → customer's first-party domain
+     - googletagmanager.com → t.yourstore.com
+     - google-analytics.com/g/collect → t.yourstore.com/a/c
+     - connect.facebook.net → t.yourstore.com
+     - facebook.com/tr → t.yourstore.com/s/p
+                                    │
+                                    ▼
+Step 4: Browser Execution
+─────────────────────────
+  GTM script executes with ALL internal URLs pointing to first-party domain:
+  - GA4 collect: t.yourstore.com/a/c ✓ (not blocked!)
+  - Meta pixel: t.yourstore.com/s/p ✓ (not blocked!)
+                                    │
+                                    ▼
+Step 5: Collect Endpoint Proxy (handleCollectProxy)
+───────────────────────────────────────────────────
+  - Pass-through to origin (NO caching)
+  - Copy headers: User-Agent, Origin, Referer
+  - Forward request body (POST data)
+  - Return with CORS headers
+```
+
+### Obfuscated Routes
+
+| Route | Target | Purpose | Caching |
+|-------|--------|---------|---------|
+| `/pf.js` | googletagmanager.com/gtm.js | GTM loader | 1 hour edge |
+| `/px.js` | googletagmanager.com/gtag/js | GA4/gtag | 1 hour edge |
+| `/sp.js` | connect.facebook.net/fbevents.js | Meta Pixel | 1 hour edge |
+| `/a/c` | google-analytics.com/g/collect | GA4 collect | Pass-through |
+| `/a/j` | google-analytics.com/j/collect | GA4 join | Pass-through |
+| `/s/p` | facebook.com/tr | Meta pixel tracking | Pass-through |
+
+### Obfuscated Parameters
+
+| Original | Obfuscated | Description |
+|----------|------------|-------------|
+| `id=GTM-XXX` | `c=XXX` | Container ID (GTM- prefix stripped) |
+| `l=dataLayer` | `d=pfData` | DataLayer variable name |
+
+### Script Injection Comparison
+
+```javascript
+// Standard GTM (blocked by ad blockers):
+(function(w,d,s,l,i){
+  w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});
+  var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';
+  j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;
+  f.parentNode.insertBefore(j,f);
+})(window,document,'script','dataLayer','GTM-XXX');
+
+// Custom Loader (not blocked - different variable names, different domain):
+(function(a,b,c,d,e){
+  a[d]=a[d]||[];a[d].push({'gtm.start':new Date().getTime(),event:'gtm.js'});
+  var f=b.getElementsByTagName(c)[0],g=b.createElement(c),h=d!='pfData'?'&d='+d:'';
+  g.async=true;g.src='https://t.yourstore.com/pf.js?c='+e+h;
+  f.parentNode.insertBefore(g,f);
+})(window,document,'script','pfData','XXX');
+```
+
+### Class: PixelFly_Custom_Loader
+
+```php
+// Key methods:
+is_enabled()                          // Check if custom loader active
+inject_custom_loader_script()         // Output obfuscated GTM script (wp_head)
+get_noscript_iframe()                 // Noscript fallback via custom domain
+validate_domain($domain)              // Validate domain format
+test_custom_domain($domain, $gtm_id)  // Test custom domain connectivity
+```
+
+### Filter: pixelfly_use_standard_gtm
+
+When Custom Loader is enabled, it registers a filter to prevent duplicate GTM injection:
+
+```php
+// Custom Loader registers at wp_head priority 1
+add_filter('pixelfly_use_standard_gtm', '__return_false');
+
+// DataLayer checks filter before injecting GTM (wp_head priority 2)
+$use_standard_gtm = apply_filters('pixelfly_use_standard_gtm', true);
+if (!$use_standard_gtm) {
+    return; // Custom Loader already handled GTM injection
+}
+```
+
+### Cache Strategy
+
+| Component | Cache Duration | Notes |
+|-----------|---------------|-------|
+| Script proxy (pf.js, px.js, sp.js) | 1 hour | Edge cache, shared across customers |
+| Collect endpoints (a/c, a/j, s/p) | None | Pass-through, real-time tracking data |
+| Cache key | Target URL | Same GTM-XXX = same cache entry |
+| URL rewriting | Per-request | Customer domain specific |
+
+---
+
 ## Theme Compatibility (v1.0.0)
 
 The plugin is designed to work with ANY WooCommerce-compatible theme by using WooCommerce hooks rather than theme-specific selectors.
@@ -438,6 +714,37 @@ function getProductDataFromPage() {
 Astra theme requires special handling for:
 - **Sticky add to cart bar:** Supports `.ast-sticky-add-to-cart .single_add_to_cart_button`
 - **Single product AJAX:** Detects `astra-woo-single-product-ajax` body class
+
+### Flatsome Theme Specifics
+
+Flatsome theme (v3.17.0+) has its own AJAX add to cart implementation. The plugin handles this with:
+
+```javascript
+// Detection: Check for Flatsome-specific indicators
+var isFlatsomeTheme = (typeof window.flatsomeVars !== 'undefined') ||
+                      (typeof window.Flatsome !== 'undefined') ||
+                      document.querySelector('script[src*="flatsome"]') !== null;
+
+// Flatsome triggers wc_fragments_refreshed after cart updates
+jQuery(document.body).on('wc_fragments_refreshed wc_fragments_loaded', function() {
+    // Fire add_to_cart if pending data exists
+});
+
+// AJAX response detection for cart updates
+jQuery(document).ajaxComplete(function(event, xhr, settings) {
+    // Check response for fragments/cart_hash indicating successful add
+    var response = JSON.parse(xhr.responseText);
+    if (response.fragments || response.cart_hash) {
+        // Fire add_to_cart event with shorter delay (150ms)
+    }
+});
+```
+
+**Key Flatsome behaviors handled:**
+- AJAX add to cart on single product pages
+- Quick view modal add to cart
+- `wc_fragments_refreshed` / `wc_fragments_loaded` events for cart updates
+- Shorter fallback delay (150ms vs 300ms) for faster response
 
 ---
 
@@ -504,7 +811,18 @@ public function declare_hpos_compatibility() {
 
 | Version | Date | Changes |
 |---------|------|---------|
+| v1.1.0 | Jan 22, 2026 | Added Consent Mode V2 (GDPR/CCPA), Custom Loader (ad blocker bypass), region targeting |
+| v1.0.1 | Jan 18, 2026 | Added Flatsome theme support for single product AJAX add to cart |
 | v1.0.0 | Jan 10, 2026 | Initial release with theme-agnostic AJAX handling, HPOS compatibility |
+
+### v1.0.1 Fixes
+- Added Flatsome theme detection via `flatsomeVars` and `Flatsome` globals
+- Added `wc_fragments_refreshed` / `wc_fragments_loaded` event listeners for Flatsome cart updates
+- Improved AJAX response detection to check for `fragments` and `cart_hash` in response
+- Reduced fallback delay for Flatsome theme (150ms vs 300ms)
+- Enhanced form submit handler for Flatsome non-AJAX mode (fires immediately on submit)
+- Improved product data extraction with 6 fallback methods for product ID
+- Added extensive debug logging for troubleshooting
 
 ### v1.0.0 Fixes
 - Fixed single product AJAX add to cart for Astra theme

@@ -29,6 +29,7 @@ class PixelFly_Admin
 
         // AJAX handlers
         add_action('wp_ajax_pixelfly_test_connection', [$this, 'ajax_test_connection']);
+        add_action('wp_ajax_pixelfly_test_custom_domain', [$this, 'ajax_test_custom_domain']);
         add_action('wp_ajax_pixelfly_fire_event', [$this, 'ajax_fire_event']);
         add_action('wp_ajax_pixelfly_delete_event', [$this, 'ajax_delete_event']);
         add_action('wp_ajax_pixelfly_fire_all_events', [$this, 'ajax_fire_all_events']);
@@ -94,6 +95,28 @@ class PixelFly_Admin
         register_setting('pixelfly_settings', 'pixelfly_datalayer_enabled');
         register_setting('pixelfly_settings', 'pixelfly_gtm_container_id');
 
+        // Custom Loader settings
+        register_setting('pixelfly_settings', 'pixelfly_custom_loader_enabled');
+        register_setting('pixelfly_settings', 'pixelfly_custom_loader_domain', [
+            'sanitize_callback' => [$this, 'sanitize_custom_domain'],
+        ]);
+
+        // Consent Mode V2 settings
+        register_setting('pixelfly_settings', 'pixelfly_consent_enabled');
+        register_setting('pixelfly_settings', 'pixelfly_consent_mode');
+        register_setting('pixelfly_settings', 'pixelfly_consent_position');
+        register_setting('pixelfly_settings', 'pixelfly_consent_title');
+        register_setting('pixelfly_settings', 'pixelfly_consent_message');
+        register_setting('pixelfly_settings', 'pixelfly_consent_privacy_url');
+        register_setting('pixelfly_settings', 'pixelfly_consent_accept_text');
+        register_setting('pixelfly_settings', 'pixelfly_consent_reject_text');
+        register_setting('pixelfly_settings', 'pixelfly_consent_settings_text');
+        register_setting('pixelfly_settings', 'pixelfly_consent_btn_color');
+        register_setting('pixelfly_settings', 'pixelfly_consent_bg_color');
+        register_setting('pixelfly_settings', 'pixelfly_consent_text_color');
+        register_setting('pixelfly_settings', 'pixelfly_consent_region');
+        register_setting('pixelfly_settings', 'pixelfly_consent_wait_ms');
+
         // Delayed events settings
         register_setting('pixelfly_settings', 'pixelfly_delayed_enabled');
         register_setting('pixelfly_settings', 'pixelfly_delayed_payment_methods');
@@ -103,6 +126,34 @@ class PixelFly_Admin
         register_setting('pixelfly_settings', 'pixelfly_debug_mode');
         register_setting('pixelfly_settings', 'pixelfly_event_logging');
         register_setting('pixelfly_settings', 'pixelfly_excluded_roles');
+    }
+
+    /**
+     * Sanitize custom domain input.
+     */
+    public function sanitize_custom_domain($domain)
+    {
+        if (empty($domain)) {
+            return '';
+        }
+
+        // Remove protocol if present
+        $domain = preg_replace('#^https?://#', '', $domain);
+
+        // Remove trailing slash
+        $domain = rtrim($domain, '/');
+
+        // Validate format
+        if (!preg_match('/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/i', $domain)) {
+            add_settings_error(
+                'pixelfly_custom_loader_domain',
+                'invalid_domain',
+                __('Invalid custom domain format. Please enter a valid subdomain (e.g., t.yourstore.com).', 'pixelfly-woocommerce')
+            );
+            return get_option('pixelfly_custom_loader_domain', '');
+        }
+
+        return sanitize_text_field($domain);
     }
 
     /**
@@ -173,6 +224,40 @@ class PixelFly_Admin
 
         $api = new PixelFly_API();
         $result = $api->test_connection();
+
+        if ($result['success']) {
+            wp_send_json_success($result);
+        } else {
+            wp_send_json_error($result);
+        }
+    }
+
+    /**
+     * AJAX: Test custom domain connection
+     */
+    public function ajax_test_custom_domain()
+    {
+        check_ajax_referer('pixelfly_admin_nonce', 'nonce');
+
+        if (!current_user_can('manage_woocommerce')) {
+            wp_send_json_error(['message' => 'Permission denied']);
+        }
+
+        $domain = isset($_POST['domain']) ? sanitize_text_field($_POST['domain']) : '';
+        $gtm_id = isset($_POST['gtm_id']) ? sanitize_text_field($_POST['gtm_id']) : 'GTM-TEST123';
+
+        if (empty($domain)) {
+            wp_send_json_error(['message' => __('Please enter a custom domain.', 'pixelfly-woocommerce')]);
+        }
+
+        // Validate domain format
+        $validated = PixelFly_Custom_Loader::validate_domain($domain);
+        if (is_wp_error($validated)) {
+            wp_send_json_error(['message' => $validated->get_error_message()]);
+        }
+
+        // Test the domain
+        $result = PixelFly_Custom_Loader::test_custom_domain($validated, $gtm_id);
 
         if ($result['success']) {
             wp_send_json_success($result);
