@@ -29,6 +29,7 @@ class PixelFly_Admin
 
         // AJAX handlers
         add_action('wp_ajax_pixelfly_test_connection', [$this, 'ajax_test_connection']);
+        add_action('wp_ajax_pixelfly_test_sgtm_connection', [$this, 'ajax_test_sgtm_connection']);
         add_action('wp_ajax_pixelfly_test_custom_domain', [$this, 'ajax_test_custom_domain']);
         add_action('wp_ajax_pixelfly_fire_event', [$this, 'ajax_fire_event']);
         add_action('wp_ajax_pixelfly_delete_event', [$this, 'ajax_delete_event']);
@@ -45,8 +46,8 @@ class PixelFly_Admin
     {
         // Main menu
         add_menu_page(
-            __('PixelFly', 'pixelfly-woocommerce'),
-            __('PixelFly', 'pixelfly-woocommerce'),
+            __('PixelFly', 'pixelfly'),
+            __('PixelFly', 'pixelfly'),
             'manage_woocommerce',
             'pixelfly',
             [$this, 'render_settings_page'],
@@ -57,8 +58,8 @@ class PixelFly_Admin
         // Settings submenu
         add_submenu_page(
             'pixelfly',
-            __('Settings', 'pixelfly-woocommerce'),
-            __('Settings', 'pixelfly-woocommerce'),
+            __('Settings', 'pixelfly'),
+            __('Settings', 'pixelfly'),
             'manage_woocommerce',
             'pixelfly',
             [$this, 'render_settings_page']
@@ -66,14 +67,14 @@ class PixelFly_Admin
 
         // Pending Events submenu
         $pending_count = PixelFly_Delayed::get_pending_count();
-        $pending_label = __('Pending Events', 'pixelfly-woocommerce');
+        $pending_label = __('Pending Events', 'pixelfly');
         if ($pending_count > 0) {
             $pending_label .= ' <span class="awaiting-mod">' . $pending_count . '</span>';
         }
 
         add_submenu_page(
             'pixelfly',
-            __('Pending Events', 'pixelfly-woocommerce'),
+            __('Pending Events', 'pixelfly'),
             $pending_label,
             'manage_woocommerce',
             'pixelfly-pending',
@@ -119,8 +120,14 @@ class PixelFly_Admin
 
         // Delayed events settings
         register_setting('pixelfly_settings', 'pixelfly_delayed_enabled');
+        register_setting('pixelfly_settings', 'pixelfly_delayed_firing_method');
         register_setting('pixelfly_settings', 'pixelfly_delayed_payment_methods');
         register_setting('pixelfly_settings', 'pixelfly_delayed_fire_on_status');
+
+        // sGTM settings
+        register_setting('pixelfly_settings', 'pixelfly_sgtm_endpoint');
+        register_setting('pixelfly_settings', 'pixelfly_sgtm_measurement_id');
+        register_setting('pixelfly_settings', 'pixelfly_sgtm_api_secret');
 
         // Advanced settings
         register_setting('pixelfly_settings', 'pixelfly_debug_mode');
@@ -148,7 +155,7 @@ class PixelFly_Admin
             add_settings_error(
                 'pixelfly_custom_loader_domain',
                 'invalid_domain',
-                __('Invalid custom domain format. Please enter a valid subdomain (e.g., t.yourstore.com).', 'pixelfly-woocommerce')
+                __('Invalid custom domain format. Please enter a valid subdomain (e.g., t.yourstore.com).', 'pixelfly')
             );
             return get_option('pixelfly_custom_loader_domain', '');
         }
@@ -167,16 +174,16 @@ class PixelFly_Admin
 
         wp_enqueue_style(
             'pixelfly-admin',
-            PIXELFLY_WC_PLUGIN_URL . 'admin/css/admin.css',
+            PIXELFLY_PLUGIN_URL . 'admin/css/admin.css',
             [],
-            PIXELFLY_WC_VERSION
+            PIXELFLY_VERSION
         );
 
         wp_enqueue_script(
             'pixelfly-admin',
-            PIXELFLY_WC_PLUGIN_URL . 'admin/js/admin.js',
+            PIXELFLY_PLUGIN_URL . 'admin/js/admin.js',
             ['jquery'],
-            PIXELFLY_WC_VERSION,
+            PIXELFLY_VERSION,
             true
         );
 
@@ -184,13 +191,13 @@ class PixelFly_Admin
             'ajaxUrl' => admin_url('admin-ajax.php'),
             'nonce' => wp_create_nonce('pixelfly_admin_nonce'),
             'strings' => [
-                'testing' => __('Testing...', 'pixelfly-woocommerce'),
-                'success' => __('Connection successful!', 'pixelfly-woocommerce'),
-                'error' => __('Connection failed', 'pixelfly-woocommerce'),
-                'firing' => __('Firing...', 'pixelfly-woocommerce'),
-                'fired' => __('Fired!', 'pixelfly-woocommerce'),
-                'confirmDelete' => __('Are you sure you want to delete this event?', 'pixelfly-woocommerce'),
-                'confirmFireAll' => __('Are you sure you want to fire all pending events?', 'pixelfly-woocommerce'),
+                'testing' => __('Testing...', 'pixelfly'),
+                'success' => __('Connection successful!', 'pixelfly'),
+                'error' => __('Connection failed', 'pixelfly'),
+                'firing' => __('Firing...', 'pixelfly'),
+                'fired' => __('Fired!', 'pixelfly'),
+                'confirmDelete' => __('Are you sure you want to delete this event?', 'pixelfly'),
+                'confirmFireAll' => __('Are you sure you want to fire all pending events?', 'pixelfly'),
             ],
         ]);
     }
@@ -200,7 +207,7 @@ class PixelFly_Admin
      */
     public function render_settings_page()
     {
-        include PIXELFLY_WC_PLUGIN_DIR . 'admin/views/settings-page.php';
+        include PIXELFLY_PLUGIN_DIR . 'admin/views/settings-page.php';
     }
 
     /**
@@ -208,7 +215,7 @@ class PixelFly_Admin
      */
     public function render_pending_events_page()
     {
-        include PIXELFLY_WC_PLUGIN_DIR . 'admin/views/pending-events.php';
+        include PIXELFLY_PLUGIN_DIR . 'admin/views/pending-events.php';
     }
 
     /**
@@ -233,6 +240,31 @@ class PixelFly_Admin
     }
 
     /**
+     * AJAX: Test sGTM connection
+     */
+    public function ajax_test_sgtm_connection()
+    {
+        check_ajax_referer('pixelfly_admin_nonce', 'nonce');
+
+        if (!current_user_can('manage_woocommerce')) {
+            wp_send_json_error(['message' => 'Permission denied']);
+        }
+
+        $endpoint = isset($_POST['sgtm_endpoint']) ? esc_url_raw($_POST['sgtm_endpoint']) : '';
+        $measurement_id = isset($_POST['sgtm_measurement_id']) ? sanitize_text_field($_POST['sgtm_measurement_id']) : '';
+        $api_secret = isset($_POST['sgtm_api_secret']) ? sanitize_text_field($_POST['sgtm_api_secret']) : '';
+
+        $api = new PixelFly_API();
+        $result = $api->test_sgtm_connection($endpoint ?: null, $measurement_id ?: null, $api_secret ?: null);
+
+        if ($result['success']) {
+            wp_send_json_success($result);
+        } else {
+            wp_send_json_error($result);
+        }
+    }
+
+    /**
      * AJAX: Test custom domain connection
      */
     public function ajax_test_custom_domain()
@@ -247,7 +279,7 @@ class PixelFly_Admin
         $gtm_id = isset($_POST['gtm_id']) ? sanitize_text_field($_POST['gtm_id']) : 'GTM-TEST123';
 
         if (empty($domain)) {
-            wp_send_json_error(['message' => __('Please enter a custom domain.', 'pixelfly-woocommerce')]);
+            wp_send_json_error(['message' => __('Please enter a custom domain.', 'pixelfly')]);
         }
 
         // Validate domain format
@@ -342,7 +374,7 @@ class PixelFly_Admin
 
         wp_send_json_success([
             'message' => sprintf(
-                __('Fired %d events, %d failed', 'pixelfly-woocommerce'),
+                __('Fired %d events, %d failed', 'pixelfly'),
                 $fired,
                 $failed
             ),

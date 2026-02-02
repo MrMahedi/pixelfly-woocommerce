@@ -440,21 +440,21 @@ window.pixelflyConsent = <?php echo wp_json_encode($consent); ?>;
         }
 
         $title = get_option('pixelfly_consent_title', '');
-        $title = !empty($title) ? $title : __('We value your privacy', 'pixelfly-woocommerce');
+        $title = !empty($title) ? $title : __('We value your privacy', 'pixelfly');
 
         $message = get_option('pixelfly_consent_message', '');
-        $message = !empty($message) ? $message : __('We use cookies to enhance your browsing experience, serve personalized ads or content, and analyze our traffic. By clicking "Accept All", you consent to our use of cookies.', 'pixelfly-woocommerce');
+        $message = !empty($message) ? $message : __('We use cookies to enhance your browsing experience, serve personalized ads or content, and analyze our traffic. By clicking "Accept All", you consent to our use of cookies.', 'pixelfly');
 
         $privacy_url = get_option('pixelfly_consent_privacy_url', get_privacy_policy_url());
 
         $accept_text = get_option('pixelfly_consent_accept_text', '');
-        $accept_text = !empty($accept_text) ? $accept_text : __('Accept All', 'pixelfly-woocommerce');
+        $accept_text = !empty($accept_text) ? $accept_text : __('Accept All', 'pixelfly');
 
         $reject_text = get_option('pixelfly_consent_reject_text', '');
-        $reject_text = !empty($reject_text) ? $reject_text : __('Reject All', 'pixelfly-woocommerce');
+        $reject_text = !empty($reject_text) ? $reject_text : __('Reject All', 'pixelfly');
 
         $settings_text = get_option('pixelfly_consent_settings_text', '');
-        $settings_text = !empty($settings_text) ? $settings_text : __('Cookie Settings', 'pixelfly-woocommerce');
+        $settings_text = !empty($settings_text) ? $settings_text : __('Cookie Settings', 'pixelfly');
 
         ?>
 <!-- PixelFly Consent Banner -->
@@ -466,7 +466,7 @@ window.pixelflyConsent = <?php echo wp_json_encode($consent); ?>;
             <p>
                 <?php echo esc_html($message); ?>
                 <?php if ($privacy_url) : ?>
-                    <a href="<?php echo esc_url($privacy_url); ?>" target="_blank"><?php esc_html_e('Privacy Policy', 'pixelfly-woocommerce'); ?></a>
+                    <a href="<?php echo esc_url($privacy_url); ?>" target="_blank"><?php esc_html_e('Privacy Policy', 'pixelfly'); ?></a>
                 <?php endif; ?>
             </p>
         </div>
@@ -487,46 +487,46 @@ window.pixelflyConsent = <?php echo wp_json_encode($consent); ?>;
 <!-- PixelFly Consent Settings Modal -->
 <div id="pixelfly-consent-modal" class="pixelfly-consent-modal">
     <div class="pixelfly-consent-modal-content">
-        <h3><?php esc_html_e('Cookie Settings', 'pixelfly-woocommerce'); ?></h3>
+        <h3><?php esc_html_e('Cookie Settings', 'pixelfly'); ?></h3>
 
         <div class="pixelfly-consent-option">
             <input type="checkbox" id="pf-consent-necessary" checked disabled>
             <div class="pixelfly-consent-option-text">
-                <h5><?php esc_html_e('Necessary', 'pixelfly-woocommerce'); ?></h5>
-                <p><?php esc_html_e('Essential for the website to function. Cannot be disabled.', 'pixelfly-woocommerce'); ?></p>
+                <h5><?php esc_html_e('Necessary', 'pixelfly'); ?></h5>
+                <p><?php esc_html_e('Essential for the website to function. Cannot be disabled.', 'pixelfly'); ?></p>
             </div>
         </div>
 
         <div class="pixelfly-consent-option">
             <input type="checkbox" id="pf-consent-analytics">
             <div class="pixelfly-consent-option-text">
-                <h5><?php esc_html_e('Analytics', 'pixelfly-woocommerce'); ?></h5>
-                <p><?php esc_html_e('Help us understand how visitors interact with our website.', 'pixelfly-woocommerce'); ?></p>
+                <h5><?php esc_html_e('Analytics', 'pixelfly'); ?></h5>
+                <p><?php esc_html_e('Help us understand how visitors interact with our website.', 'pixelfly'); ?></p>
             </div>
         </div>
 
         <div class="pixelfly-consent-option">
             <input type="checkbox" id="pf-consent-marketing">
             <div class="pixelfly-consent-option-text">
-                <h5><?php esc_html_e('Marketing', 'pixelfly-woocommerce'); ?></h5>
-                <p><?php esc_html_e('Used to deliver personalized ads and measure ad performance.', 'pixelfly-woocommerce'); ?></p>
+                <h5><?php esc_html_e('Marketing', 'pixelfly'); ?></h5>
+                <p><?php esc_html_e('Used to deliver personalized ads and measure ad performance.', 'pixelfly'); ?></p>
             </div>
         </div>
 
         <div class="pixelfly-consent-option">
             <input type="checkbox" id="pf-consent-personalization">
             <div class="pixelfly-consent-option-text">
-                <h5><?php esc_html_e('Personalization', 'pixelfly-woocommerce'); ?></h5>
-                <p><?php esc_html_e('Remember your preferences and personalize your experience.', 'pixelfly-woocommerce'); ?></p>
+                <h5><?php esc_html_e('Personalization', 'pixelfly'); ?></h5>
+                <p><?php esc_html_e('Remember your preferences and personalize your experience.', 'pixelfly'); ?></p>
             </div>
         </div>
 
         <div class="pixelfly-consent-modal-actions">
             <button type="button" class="pixelfly-consent-btn pixelfly-consent-btn-reject" onclick="pixelflyConsent.hideSettings()">
-                <?php esc_html_e('Cancel', 'pixelfly-woocommerce'); ?>
+                <?php esc_html_e('Cancel', 'pixelfly'); ?>
             </button>
             <button type="button" class="pixelfly-consent-btn pixelfly-consent-btn-accept" onclick="pixelflyConsent.saveSettings()">
-                <?php esc_html_e('Save Settings', 'pixelfly-woocommerce'); ?>
+                <?php esc_html_e('Save Settings', 'pixelfly'); ?>
             </button>
         </div>
     </div>

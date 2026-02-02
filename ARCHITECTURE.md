@@ -14,8 +14,8 @@ PixelFly for WooCommerce is a comprehensive e-commerce tracking plugin that send
 ## Plugin Structure
 
 ```
-pixelfly-woocommerce/
-├── pixelfly-woocommerce.php          # Main plugin file, initialization
+pixelfly/
+├── pixelfly.php          # Main plugin file, initialization
 ├── includes/
 │   ├── class-pixelfly-admin.php      # Admin settings & AJAX handlers
 │   ├── class-pixelfly-api.php        # PixelFly API client (HTTP requests)
@@ -28,7 +28,7 @@ pixelfly-woocommerce/
 │   ├── class-pixelfly-user-data.php  # User data collection & hashing
 │   └── class-pixelfly-utm-capture.php # UTM parameter capture
 ├── assets/js/
-│   └── pixelfly-woocommerce.js       # Client-side tracking (AJAX events)
+│   └── pixelfly.js       # Client-side tracking (AJAX events)
 ├── admin/
 │   ├── views/
 │   │   ├── settings-page.php         # Admin settings UI
@@ -58,7 +58,7 @@ pixelfly-woocommerce/
                     ▼                               ▼
 ┌──────────────────────────────┐    ┌──────────────────────────────┐
 │     PHP (Server-Side)        │    │    JavaScript (Browser)       │
-│   PixelFly_DataLayer         │    │  pixelfly-woocommerce.js      │
+│   PixelFly_DataLayer         │    │  pixelfly.js      │
 │                              │    │                              │
 │  • Hooks into WC actions     │    │  • Listens for AJAX events   │
 │  • Outputs inline <script>   │    │  • Captures add_to_cart      │
@@ -228,7 +228,7 @@ pixelfly-woocommerce/
 - SHA-256 hashing for PII fields
 - Supports logged-in users and guest checkout data extraction
 
-### pixelfly-woocommerce.js (Client-Side)
+### pixelfly.js (Client-Side)
 - AJAX add to cart tracking (archive pages)
 - Single product AJAX add to cart
 - WooCommerce Blocks compatibility
@@ -746,6 +746,40 @@ jQuery(document).ajaxComplete(function(event, xhr, settings) {
 - `wc_fragments_refreshed` / `wc_fragments_loaded` events for cart updates
 - Shorter fallback delay (150ms vs 300ms) for faster response
 
+### CartFlows Plugin Compatibility
+
+CartFlows uses custom sales funnels with different step types. The plugin properly detects CartFlows step types to avoid premature event firing:
+
+**CartFlows Step Types:**
+| Step Type | Checkout Events | Description |
+|-----------|-----------------|-------------|
+| `landing` | ❌ NO | Sales/landing pages - should NOT fire checkout events |
+| `checkout` | ✅ YES | Actual checkout step - fire begin_checkout, add_shipping_info, add_payment_info |
+| `optin` | ❌ NO | Optin/lead capture pages |
+| `upsell` | ❌ NO | One-click upsell pages |
+| `downsell` | ❌ NO | One-click downsell pages |
+| `thankyou` | ❌ NO | Thank you pages (purchase event handled separately) |
+
+```php
+// Detection logic in checkout_events_footer()
+if ($this->is_cartflows_active()) {
+    // Only fire checkout events on actual CartFlows checkout steps
+    if (function_exists('_is_wcf_checkout_type') && !_is_wcf_checkout_type()) {
+        // Skip landing, optin, upsell, downsell, thankyou pages
+        if (_is_wcf_landing_type() || _is_wcf_optin_type() || ...) {
+            return;
+        }
+    }
+}
+```
+
+**CartFlows Detection:**
+```php
+private function is_cartflows_active() {
+    return defined('CARTFLOWS_FILE') || class_exists('Cartflows_Loader');
+}
+```
+
 ---
 
 ## Event Deduplication
@@ -811,9 +845,16 @@ public function declare_hpos_compatibility() {
 
 | Version | Date | Changes |
 |---------|------|---------|
+| v1.1.1 | Jan 28, 2026 | Added CartFlows compatibility - prevent premature checkout events on landing/optin pages |
 | v1.1.0 | Jan 22, 2026 | Added Consent Mode V2 (GDPR/CCPA), Custom Loader (ad blocker bypass), region targeting |
 | v1.0.1 | Jan 18, 2026 | Added Flatsome theme support for single product AJAX add to cart |
 | v1.0.0 | Jan 10, 2026 | Initial release with theme-agnostic AJAX handling, HPOS compatibility |
+
+### v1.1.1 Fixes
+- Added CartFlows plugin compatibility for checkout events
+- Checkout events (`begin_checkout`, `add_shipping_info`, `add_payment_info`) now only fire on actual CartFlows checkout steps
+- Prevents premature event firing on CartFlows landing pages, optin pages, upsell/downsell pages
+- Uses CartFlows functions: `_is_wcf_checkout_type()`, `_is_wcf_landing_type()`, `_is_wcf_optin_type()`, etc.
 
 ### v1.0.1 Fixes
 - Added Flatsome theme detection via `flatsomeVars` and `Flatsome` globals

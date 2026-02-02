@@ -53,9 +53,9 @@ class PixelFly_Tracker
 
         wp_enqueue_script(
             'pixelfly-tracker',
-            PIXELFLY_WC_PLUGIN_URL . 'public/js/pixelfly-tracker.js',
+            PIXELFLY_PLUGIN_URL . 'public/js/pixelfly-tracker.js',
             ['jquery'],
-            PIXELFLY_WC_VERSION,
+            PIXELFLY_VERSION,
             true
         );
 

@@ -13,25 +13,25 @@ $pending_events = PixelFly_Delayed::get_pending_events(50);
 ?>
 
 <div class="wrap pixelfly-pending-events">
-    <h1><?php esc_html_e('Pending Events', 'pixelfly-woocommerce'); ?></h1>
+    <h1><?php esc_html_e('Pending Events', 'pixelfly'); ?></h1>
 
     <!-- Stats -->
     <div class="pixelfly-stats">
         <div class="stat-box pending">
             <span class="stat-number"><?php echo esc_html($stats['pending']); ?></span>
-            <span class="stat-label"><?php esc_html_e('Pending', 'pixelfly-woocommerce'); ?></span>
+            <span class="stat-label"><?php esc_html_e('Pending', 'pixelfly'); ?></span>
         </div>
         <div class="stat-box fired">
             <span class="stat-number"><?php echo esc_html($stats['fired']); ?></span>
-            <span class="stat-label"><?php esc_html_e('Fired', 'pixelfly-woocommerce'); ?></span>
+            <span class="stat-label"><?php esc_html_e('Fired', 'pixelfly'); ?></span>
         </div>
         <div class="stat-box failed">
             <span class="stat-number"><?php echo esc_html($stats['failed']); ?></span>
-            <span class="stat-label"><?php esc_html_e('Failed', 'pixelfly-woocommerce'); ?></span>
+            <span class="stat-label"><?php esc_html_e('Failed', 'pixelfly'); ?></span>
         </div>
         <div class="stat-box total">
             <span class="stat-number"><?php echo esc_html($stats['total']); ?></span>
-            <span class="stat-label"><?php esc_html_e('Total', 'pixelfly-woocommerce'); ?></span>
+            <span class="stat-label"><?php esc_html_e('Total', 'pixelfly'); ?></span>
         </div>
     </div>
 
@@ -40,7 +40,7 @@ $pending_events = PixelFly_Delayed::get_pending_events(50);
         <div class="alignleft actions">
             <?php if ($stats['pending'] > 0): ?>
                 <button type="button" id="pixelfly-fire-all" class="button button-primary">
-                    <?php esc_html_e('Fire All Pending Events', 'pixelfly-woocommerce'); ?>
+                    <?php esc_html_e('Fire All Pending Events', 'pixelfly'); ?>
                 </button>
             <?php endif; ?>
         </div>
@@ -51,14 +51,14 @@ $pending_events = PixelFly_Delayed::get_pending_events(50);
         <table class="wp-list-table widefat fixed striped">
             <thead>
                 <tr>
-                    <th style="width: 60px;"><?php esc_html_e('ID', 'pixelfly-woocommerce'); ?></th>
-                    <th style="width: 100px;"><?php esc_html_e('Order', 'pixelfly-woocommerce'); ?></th>
-                    <th><?php esc_html_e('Customer', 'pixelfly-woocommerce'); ?></th>
-                    <th style="width: 120px;"><?php esc_html_e('Amount', 'pixelfly-woocommerce'); ?></th>
-                    <th style="width: 100px;"><?php esc_html_e('Payment', 'pixelfly-woocommerce'); ?></th>
-                    <th style="width: 120px;"><?php esc_html_e('Order Status', 'pixelfly-woocommerce'); ?></th>
-                    <th style="width: 150px;"><?php esc_html_e('Created', 'pixelfly-woocommerce'); ?></th>
-                    <th style="width: 150px;"><?php esc_html_e('Actions', 'pixelfly-woocommerce'); ?></th>
+                    <th style="width: 60px;"><?php esc_html_e('ID', 'pixelfly'); ?></th>
+                    <th style="width: 100px;"><?php esc_html_e('Order', 'pixelfly'); ?></th>
+                    <th><?php esc_html_e('Customer', 'pixelfly'); ?></th>
+                    <th style="width: 120px;"><?php esc_html_e('Amount', 'pixelfly'); ?></th>
+                    <th style="width: 100px;"><?php esc_html_e('Payment', 'pixelfly'); ?></th>
+                    <th style="width: 120px;"><?php esc_html_e('Order Status', 'pixelfly'); ?></th>
+                    <th style="width: 150px;"><?php esc_html_e('Created', 'pixelfly'); ?></th>
+                    <th style="width: 150px;"><?php esc_html_e('Actions', 'pixelfly'); ?></th>
                 </tr>
             </thead>
             <tbody>
@@ -95,10 +95,10 @@ $pending_events = PixelFly_Delayed::get_pending_events(50);
                         <td><?php echo esc_html(date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($event->created_at))); ?></td>
                         <td>
                             <button type="button" class="button button-small pixelfly-fire-event" data-event-id="<?php echo esc_attr($event->id); ?>">
-                                <?php esc_html_e('Fire', 'pixelfly-woocommerce'); ?>
+                                <?php esc_html_e('Fire', 'pixelfly'); ?>
                             </button>
                             <button type="button" class="button button-small button-link-delete pixelfly-delete-event" data-event-id="<?php echo esc_attr($event->id); ?>">
-                                <?php esc_html_e('Delete', 'pixelfly-woocommerce'); ?>
+                                <?php esc_html_e('Delete', 'pixelfly'); ?>
                             </button>
                         </td>
                     </tr>
@@ -107,7 +107,7 @@ $pending_events = PixelFly_Delayed::get_pending_events(50);
         </table>
     <?php else: ?>
         <div class="pixelfly-no-events">
-            <p><?php esc_html_e('No pending events found.', 'pixelfly-woocommerce'); ?></p>
+            <p><?php esc_html_e('No pending events found.', 'pixelfly'); ?></p>
         </div>
     <?php endif; ?>
 </div>

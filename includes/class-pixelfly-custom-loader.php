@@ -211,12 +211,12 @@ class PixelFly_Custom_Loader {
 
         // Basic validation
         if (empty($domain)) {
-            return new WP_Error('empty_domain', __('Domain cannot be empty.', 'pixelfly-woocommerce'));
+            return new WP_Error('empty_domain', __('Domain cannot be empty.', 'pixelfly'));
         }
 
         // Check for valid domain format
         if (!preg_match('/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/i', $domain)) {
-            return new WP_Error('invalid_domain', __('Please enter a valid domain (e.g., t.yourstore.com).', 'pixelfly-woocommerce'));
+            return new WP_Error('invalid_domain', __('Please enter a valid domain (e.g., t.yourstore.com).', 'pixelfly'));
         }
 
         return $domain;
@@ -247,13 +247,13 @@ class PixelFly_Custom_Loader {
         if ($status === 200) {
             return array(
                 'success' => true,
-                'message' => __('Custom domain is working correctly!', 'pixelfly-woocommerce'),
+                'message' => __('Custom domain is working correctly!', 'pixelfly'),
             );
         }
 
         return array(
             'success' => false,
-            'message' => sprintf(__('Domain returned status %d. Make sure the custom domain is configured in PixelFly dashboard.', 'pixelfly-woocommerce'), $status),
+            'message' => sprintf(__('Domain returned status %d. Make sure the custom domain is configured in PixelFly dashboard.', 'pixelfly'), $status),
         );
     }
 }

@@ -105,7 +105,7 @@ class PixelFly_Delayed
             return;
         }
 
-        // Fire to PixelFly
+        // Fire event using configured method (PixelFly or sGTM)
         $event_data = json_decode($pending->event_data, true);
 
         // Update is_delayed flag
@@ -114,7 +114,7 @@ class PixelFly_Delayed
         $event_data['context']['original_timestamp'] = $event_data['event_time'] ?? null;
         $event_data['event_time'] = time();
 
-        $result = $this->api->send_event($event_data);
+        $result = $this->api->fire_event($event_data);
 
         // Update status
         $wpdb->update(
@@ -312,7 +312,7 @@ class PixelFly_Delayed
         $event_data['context']['manual_fire'] = true;
         $event_data['event_time'] = time();
 
-        $result = $api->send_event($event_data);
+        $result = $api->fire_event($event_data);
 
         $wpdb->update(
             $table_name,

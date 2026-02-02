@@ -108,6 +108,16 @@ class PixelFly_DataLayer
     }
 
     /**
+     * Check if CartFlows plugin is active
+     *
+     * @return bool
+     */
+    private function is_cartflows_active()
+    {
+        return defined('CARTFLOWS_FILE') || class_exists('Cartflows_Loader');
+    }
+
+    /**
      * Enqueue frontend scripts
      */
     public function enqueue_scripts()
@@ -115,15 +125,15 @@ class PixelFly_DataLayer
         // Always load script on frontend for AJAX add to cart support
         // Products can appear anywhere (widgets, shortcodes, related products, etc.)
         wp_enqueue_script(
-            'pixelfly-woocommerce',
-            PIXELFLY_WC_PLUGIN_URL . 'assets/js/pixelfly-woocommerce.js',
+            'pixelfly',
+            PIXELFLY_PLUGIN_URL . 'assets/js/pixelfly.js',
             ['jquery'],
-            PIXELFLY_WC_VERSION,
+            PIXELFLY_VERSION,
             true
         );
 
         // Localize script with config data (alternative to inline script)
-        wp_localize_script('pixelfly-woocommerce', 'pixelflyConfig', [
+        wp_localize_script('pixelfly', 'pixelflyConfig', [
             'ajaxUrl' => admin_url('admin-ajax.php'),
             'nonce' => wp_create_nonce('pixelfly_nonce'),
             'currency' => get_woocommerce_currency(),
@@ -599,6 +609,23 @@ class PixelFly_DataLayer
     {
         if (!is_checkout() || is_order_received_page()) {
             return;
+        }
+
+        // CartFlows compatibility - only fire on actual checkout steps, not landing/optin/upsell pages
+        if ($this->is_cartflows_active()) {
+            // If we're on a CartFlows step but NOT a checkout step, don't fire
+            if (function_exists('_is_wcf_checkout_type') && !_is_wcf_checkout_type()) {
+                // Check if it's a landing page, optin, upsell, or downsell - these should NOT trigger checkout events
+                if (
+                    (function_exists('_is_wcf_landing_type') && _is_wcf_landing_type()) ||
+                    (function_exists('_is_wcf_optin_type') && _is_wcf_optin_type()) ||
+                    (function_exists('_is_wcf_upsell_type') && _is_wcf_upsell_type()) ||
+                    (function_exists('_is_wcf_downsell_type') && _is_wcf_downsell_type()) ||
+                    (function_exists('_is_wcf_thankyou_type') && _is_wcf_thankyou_type())
+                ) {
+                    return;
+                }
+            }
         }
 
         $cart_data = PixelFly_Events::build_cart_data();

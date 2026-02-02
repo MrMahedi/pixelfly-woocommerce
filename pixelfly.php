@@ -1,13 +1,13 @@
 <?php
 
 /**
- * Plugin Name: PixelFly for WooCommerce
+ * Plugin Name: PixelFly – Server Side Tracking | GTM DataLayer | Delayed Purchase | Consent V2 | Custom Loader
  * Plugin URI: https://pixelfly.io
- * Description: Server-side event tracking for Meta CAPI & GA4 via PixelFly. Includes dataLayer support and delayed purchase events for COD orders.
+ * Description: Server-side conversion tracking via sGTM or proxy, GTM DataLayer events, delayed purchase events for COD orders, Consent Mode V2, and custom script loader to bypass ad blockers.
  * Version: 1.1.0
  * Author: PixelFly
  * Author URI: https://pixelfly.io
- * Text Domain: pixelfly-woocommerce
+ * Text Domain: pixelfly
  * Domain Path: /languages
  * Requires at least: 6.0
  * Requires PHP: 7.4
@@ -22,11 +22,11 @@ if (!defined('ABSPATH')) {
 }
 
 // Plugin constants
-define('PIXELFLY_WC_VERSION', '1.1.0');
-define('PIXELFLY_WC_PLUGIN_FILE', __FILE__);
-define('PIXELFLY_WC_PLUGIN_DIR', plugin_dir_path(__FILE__));
-define('PIXELFLY_WC_PLUGIN_URL', plugin_dir_url(__FILE__));
-define('PIXELFLY_WC_PLUGIN_BASENAME', plugin_basename(__FILE__));
+define('PIXELFLY_VERSION', '1.1.0');
+define('PIXELFLY_PLUGIN_FILE', __FILE__);
+define('PIXELFLY_PLUGIN_DIR', plugin_dir_path(__FILE__));
+define('PIXELFLY_PLUGIN_URL', plugin_dir_url(__FILE__));
+define('PIXELFLY_PLUGIN_BASENAME', plugin_basename(__FILE__));
 
 /**
  * Main PixelFly WooCommerce Class
@@ -94,7 +94,7 @@ final class PixelFly_WooCommerce
 
         // Load user data class if not already loaded
         if (!class_exists('PixelFly_User_Data')) {
-            require_once PIXELFLY_WC_PLUGIN_DIR . 'includes/class-pixelfly-user-data.php';
+            require_once PIXELFLY_PLUGIN_DIR . 'includes/class-pixelfly-user-data.php';
         }
 
         PixelFly_User_Data::init();
@@ -154,16 +154,16 @@ final class PixelFly_WooCommerce
      */
     private function load_includes()
     {
-        require_once PIXELFLY_WC_PLUGIN_DIR . 'includes/class-pixelfly-admin.php';
-        require_once PIXELFLY_WC_PLUGIN_DIR . 'includes/class-pixelfly-api.php';
-        require_once PIXELFLY_WC_PLUGIN_DIR . 'includes/class-pixelfly-user-data.php';
-        require_once PIXELFLY_WC_PLUGIN_DIR . 'includes/class-pixelfly-events.php';
-        require_once PIXELFLY_WC_PLUGIN_DIR . 'includes/class-pixelfly-datalayer.php';
-        require_once PIXELFLY_WC_PLUGIN_DIR . 'includes/class-pixelfly-tracker.php';
-        require_once PIXELFLY_WC_PLUGIN_DIR . 'includes/class-pixelfly-delayed.php';
-        require_once PIXELFLY_WC_PLUGIN_DIR . 'includes/class-pixelfly-utm-capture.php';
-        require_once PIXELFLY_WC_PLUGIN_DIR . 'includes/class-pixelfly-consent.php';
-        require_once PIXELFLY_WC_PLUGIN_DIR . 'includes/class-pixelfly-custom-loader.php';
+        require_once PIXELFLY_PLUGIN_DIR . 'includes/class-pixelfly-admin.php';
+        require_once PIXELFLY_PLUGIN_DIR . 'includes/class-pixelfly-api.php';
+        require_once PIXELFLY_PLUGIN_DIR . 'includes/class-pixelfly-user-data.php';
+        require_once PIXELFLY_PLUGIN_DIR . 'includes/class-pixelfly-events.php';
+        require_once PIXELFLY_PLUGIN_DIR . 'includes/class-pixelfly-datalayer.php';
+        require_once PIXELFLY_PLUGIN_DIR . 'includes/class-pixelfly-tracker.php';
+        require_once PIXELFLY_PLUGIN_DIR . 'includes/class-pixelfly-delayed.php';
+        require_once PIXELFLY_PLUGIN_DIR . 'includes/class-pixelfly-utm-capture.php';
+        require_once PIXELFLY_PLUGIN_DIR . 'includes/class-pixelfly-consent.php';
+        require_once PIXELFLY_PLUGIN_DIR . 'includes/class-pixelfly-custom-loader.php';
     }
 
     /**
@@ -243,9 +243,9 @@ final class PixelFly_WooCommerce
     public function load_textdomain()
     {
         load_plugin_textdomain(
-            'pixelfly-woocommerce',
+            'pixelfly',
             false,
-            dirname(PIXELFLY_WC_PLUGIN_BASENAME) . '/languages/'
+            dirname(PIXELFLY_PLUGIN_BASENAME) . '/languages/'
         );
     }
 
@@ -256,7 +256,7 @@ final class PixelFly_WooCommerce
     {
 ?>
         <div class="error">
-            <p><?php esc_html_e('PixelFly for WooCommerce requires WooCommerce to be installed and activated.', 'pixelfly-woocommerce'); ?></p>
+            <p><?php esc_html_e('PixelFly for WooCommerce requires WooCommerce to be installed and activated.', 'pixelfly'); ?></p>
         </div>
 <?php
     }
