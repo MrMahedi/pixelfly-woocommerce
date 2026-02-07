@@ -705,7 +705,7 @@ window.pixelflyConsent = <?php echo wp_json_encode($consent); ?>;
             '/',
             '',
             is_ssl(),
-            false
+            true
         );
 
         wp_send_json_success(array('consent' => $sanitized));

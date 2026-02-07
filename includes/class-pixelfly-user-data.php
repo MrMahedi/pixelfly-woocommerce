@@ -152,7 +152,7 @@ class PixelFly_User_Data
         // Generate from fbclid if available
         $fbclid = isset($_GET['fbclid']) ? sanitize_text_field($_GET['fbclid']) : '';
         if ($fbclid) {
-            return 'fb.1.' . time() * 1000 . '.' . $fbclid;
+            return 'fb.1.' . (time() * 1000) . '.' . $fbclid;
         }
 
         return '';

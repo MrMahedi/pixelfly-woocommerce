@@ -382,7 +382,7 @@ $all_roles = wp_roles()->get_names();
                         </th>
                         <td>
                             <input type="url" id="pixelfly_sgtm_endpoint" name="pixelfly_sgtm_endpoint" value="<?php echo esc_attr($sgtm_endpoint); ?>" class="regular-text" placeholder="https://sgtm.yourdomain.com">
-                            <p class="description"><?php esc_html_e('Your server-side GTM container URL (without /mp/collect path).', 'pixelfly'); ?></p>
+                            <p class="description"><?php esc_html_e('Your server-side GTM container URL. Events will be sent to /g/collect endpoint.', 'pixelfly'); ?></p>
                         </td>
                     </tr>
                     <tr>
@@ -396,11 +396,11 @@ $all_roles = wp_roles()->get_names();
                     </tr>
                     <tr>
                         <th scope="row">
-                            <label for="pixelfly_sgtm_api_secret"><?php esc_html_e('API Secret', 'pixelfly'); ?></label>
+                            <label for="pixelfly_sgtm_api_secret"><?php esc_html_e('API Secret (Optional)', 'pixelfly'); ?></label>
                         </th>
                         <td>
                             <input type="text" id="pixelfly_sgtm_api_secret" name="pixelfly_sgtm_api_secret" value="<?php echo esc_attr($sgtm_api_secret); ?>" class="regular-text" placeholder="<?php esc_attr_e('Enter your GA4 API secret', 'pixelfly'); ?>">
-                            <p class="description"><?php esc_html_e('Create an API secret in GA4 Admin > Data Streams > Measurement Protocol API secrets.', 'pixelfly'); ?></p>
+                            <p class="description"><?php esc_html_e('Optional. Not required for /g/collect. Only needed if using /mp/collect endpoint.', 'pixelfly'); ?></p>
                         </td>
                     </tr>
                     <tr>
@@ -769,8 +769,8 @@ $all_roles = wp_roles()->get_names();
             var measurementId = $('#pixelfly_sgtm_measurement_id').val();
             var apiSecret = $('#pixelfly_sgtm_api_secret').val();
 
-            if (!endpoint || !measurementId || !apiSecret) {
-                $result.removeClass('success').addClass('error').text('All sGTM fields are required.');
+            if (!endpoint || !measurementId) {
+                $result.removeClass('success').addClass('error').text('sGTM Endpoint and Measurement ID are required.');
                 return;
             }
 

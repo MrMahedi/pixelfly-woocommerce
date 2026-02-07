@@ -269,7 +269,7 @@ class PixelFly_DataLayer
                 'event': 'page_view',
                 'eventId': '<?php echo esc_js(PixelFly_Events::generate_event_id('pv')); ?>',
                 'page_title': '<?php echo esc_js(wp_title('', false)); ?>',
-                'page_location': '<?php echo esc_js(home_url($_SERVER['REQUEST_URI'])); ?>',
+                'page_location': '<?php echo esc_js(home_url(esc_url_raw($_SERVER['REQUEST_URI']))); ?>',
                 'page_type': '<?php echo esc_js($page_type); ?>'
             });
         </script>
