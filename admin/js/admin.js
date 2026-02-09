@@ -58,6 +58,33 @@
             });
         });
 
+        // Debug event - opens the /g/collect URL in new tab
+        $(document).on('click', '.pixelfly-debug-event', function() {
+            var $button = $(this);
+            var eventId = $button.data('event-id');
+            var originalText = $button.text();
+
+            $button.prop('disabled', true).text('Loading...');
+
+            $.post(pixelflyAdmin.ajaxUrl, {
+                action: 'pixelfly_get_debug_url',
+                nonce: pixelflyAdmin.nonce,
+                event_id: eventId
+            }, function(response) {
+                $button.prop('disabled', false).text(originalText);
+
+                if (response.success && response.data.debug_url) {
+                    // Open the debug URL in a new tab
+                    window.open(response.data.debug_url, '_blank');
+                } else {
+                    alert(response.data.message || 'Failed to get debug URL');
+                }
+            }).fail(function() {
+                $button.prop('disabled', false).text(originalText);
+                alert('Request failed');
+            });
+        });
+
         // Delete event
         $(document).on('click', '.pixelfly-delete-event', function() {
             if (!confirm(pixelflyAdmin.strings.confirmDelete)) {

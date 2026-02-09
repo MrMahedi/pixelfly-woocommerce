@@ -321,6 +321,24 @@ class PixelFly_API
     }
 
     /**
+     * Get the debug URL for an event (public wrapper for build_g_collect_url)
+     *
+     * @param array $event_data Event data
+     * @return string|false Full URL or false if sGTM not configured
+     */
+    public function get_debug_url($event_data)
+    {
+        $endpoint = get_option('pixelfly_sgtm_endpoint', '');
+        $measurement_id = get_option('pixelfly_sgtm_measurement_id', '');
+
+        if (empty($endpoint) || empty($measurement_id)) {
+            return false;
+        }
+
+        return $this->build_g_collect_url($endpoint, $measurement_id, $event_data);
+    }
+
+    /**
      * Build /g/collect URL with GA4 gtag.js format parameters
      *
      * @param string $endpoint sGTM endpoint URL
@@ -367,22 +385,28 @@ class PixelFly_API
         $params['ep.data_source'] = 'server';
 
         // Action source for Facebook CAPI (website, physical_store, phone_call, chat)
-        $params['ep.action_source'] = $event_data['action_source'] ?? 'website';
+        $action_source = $event_data['action_source'] ?? 'website';
+        $params['ep.action_source'] = $action_source;
+        $params['ep.x-fb-action_source'] = $action_source;
 
         // Event source URL for Facebook CAPI
         if (!empty($event_data['event_source_url'])) {
             $params['ep.event_source_url'] = $event_data['event_source_url'];
         }
 
-        // Transaction data
+        // Transaction data (standard + x-fb-cd-* for Facebook CAPI)
         if (!empty($event_data['transaction_id'])) {
             $params['ep.transaction_id'] = $event_data['transaction_id'];
+            $params['ep.x-fb-cd-order_id'] = $event_data['transaction_id'];
         }
         if (isset($event_data['value'])) {
-            $params['epn.value'] = (float) $event_data['value'];
+            $value = (float) $event_data['value'];
+            $params['epn.value'] = $value;
+            $params['ep.x-fb-cd-value'] = $value;
         }
         if (!empty($event_data['currency'])) {
             $params['ep.currency'] = $event_data['currency'];
+            $params['ep.x-fb-cd-currency'] = $event_data['currency'];
         }
         if (!empty($event_data['shipping'])) {
             $params['epn.shipping'] = (float) $event_data['shipping'];
@@ -394,15 +418,18 @@ class PixelFly_API
             $params['ep.coupon'] = $event_data['coupon'];
         }
 
-        // Facebook-specific parameters (for CAPI tag in sGTM)
+        // Facebook-specific parameters (standard + x-fb-cd-* for Official FB CAPI template)
         // content_ids - array of product IDs
         $content_ids = $event_data['content_ids'] ?? array_column($items, 'item_id');
         if (!empty($content_ids)) {
-            $params['ep.content_ids'] = wp_json_encode($content_ids);
+            $content_ids_json = wp_json_encode($content_ids);
+            $params['ep.content_ids'] = $content_ids_json;
+            $params['ep.x-fb-cd-content_ids'] = $content_ids_json;
         }
 
         // content_type - always 'product' for ecommerce
         $params['ep.content_type'] = 'product';
+        $params['ep.x-fb-cd-content_type'] = 'product';
 
         // num_items - total quantity
         $num_items = 0;
@@ -410,55 +437,93 @@ class PixelFly_API
             $num_items += (int) ($item['quantity'] ?? 1);
         }
         $params['epn.num_items'] = $num_items;
+        $params['ep.x-fb-cd-num_items'] = $num_items;
 
         // content_name - first item name or combined
         if (!empty($items)) {
             $content_names = array_column($items, 'item_name');
-            $params['ep.content_name'] = implode(', ', array_filter($content_names));
+            $content_name_str = implode(', ', array_filter($content_names));
+            $params['ep.content_name'] = $content_name_str;
+            $params['ep.x-fb-cd-content_name'] = $content_name_str;
         }
 
         // content_category - first item category
         if (!empty($items[0]['item_category'])) {
             $params['ep.content_category'] = $items[0]['item_category'];
+            $params['ep.x-fb-cd-content_category'] = $items[0]['item_category'];
         }
 
-        // User data for Enhanced Conversions (as user properties)
+        // User data for Enhanced Conversions (as user properties - plain text)
+        // Also add x-fb-ud-* format for Official Facebook CAPI template (SHA256 hashed!)
+        // Facebook requires user data to be hashed with SHA256
         if (!empty($user_data['em'])) {
             $params['up.email'] = $user_data['em'];
+            // Hash email: lowercase, trim, then SHA256
+            $params['ep.x-fb-ud-em'] = hash('sha256', strtolower(trim($user_data['em'])));
         }
         if (!empty($user_data['ph'])) {
             $params['up.phone'] = $user_data['ph'];
+            // Hash phone: remove non-digits, ensure country code, then SHA256
+            $phone = preg_replace('/[^0-9]/', '', $user_data['ph']);
+            // Add Bangladesh country code if not present and looks like local number
+            if (strlen($phone) === 11 && strpos($phone, '0') === 0) {
+                $phone = '880' . substr($phone, 1);
+            } elseif (strlen($phone) === 10) {
+                $phone = '880' . $phone;
+            }
+            $params['ep.x-fb-ud-ph'] = hash('sha256', $phone);
         }
         if (!empty($user_data['fn'])) {
             $params['up.first_name'] = $user_data['fn'];
+            // Hash first name: lowercase, trim, then SHA256
+            $params['ep.x-fb-ud-fn'] = hash('sha256', strtolower(trim($user_data['fn'])));
         }
         if (!empty($user_data['ln'])) {
             $params['up.last_name'] = $user_data['ln'];
+            // Hash last name: lowercase, trim, then SHA256
+            $params['ep.x-fb-ud-ln'] = hash('sha256', strtolower(trim($user_data['ln'])));
         }
         if (!empty($user_data['ct'])) {
             $params['up.city'] = $user_data['ct'];
+            // Hash city: lowercase, trim, remove spaces, then SHA256
+            $params['ep.x-fb-ud-ct'] = hash('sha256', strtolower(str_replace(' ', '', trim($user_data['ct']))));
         }
         if (!empty($user_data['st'])) {
             $params['up.region'] = $user_data['st'];
+            // Hash state: lowercase, then SHA256
+            $params['ep.x-fb-ud-st'] = hash('sha256', strtolower(trim($user_data['st'])));
         }
         if (!empty($user_data['country'])) {
             $params['up.country'] = $user_data['country'];
+            // Hash country: lowercase 2-letter code, then SHA256
+            $params['ep.x-fb-ud-country'] = hash('sha256', strtolower(trim($user_data['country'])));
         }
         if (!empty($user_data['zp'])) {
             $params['up.postal_code'] = $user_data['zp'];
+            // Hash zip: lowercase, trim, then SHA256
+            $params['ep.x-fb-ud-zp'] = hash('sha256', strtolower(trim($user_data['zp'])));
         }
 
-        // Facebook click IDs
+        // Facebook click IDs (standard + x-fb-ck-* for Official FB CAPI template)
         if (!empty($user_data['fbp'])) {
             $params['ep.fbp'] = $user_data['fbp'];
+            $params['ep.x-fb-ck-fbp'] = $user_data['fbp'];
         }
         if (!empty($user_data['fbc'])) {
             $params['ep.fbc'] = $user_data['fbc'];
+            $params['ep.x-fb-ck-fbc'] = $user_data['fbc'];
         }
 
-        // External ID for Facebook
+        // External ID for Facebook (standard + x-fb-ud-* format - hashed for FB CAPI)
         if (!empty($user_data['external_id'])) {
             $params['ep.external_id'] = $user_data['external_id'];
+            // Hash external_id with SHA256 for Facebook CAPI
+            $params['ep.x-fb-ud-external_id'] = hash('sha256', $user_data['external_id']);
+        }
+
+        // GA Client ID for GA4 cross-device tracking
+        if (!empty($user_data['ga_client_id'])) {
+            $params['ep.ga_client_id'] = $user_data['ga_client_id'];
         }
 
         // Items array (pr1, pr2, etc. - GA4 ecommerce format)
@@ -472,6 +537,9 @@ class PixelFly_API
             }
             if (!empty($item['item_category'])) {
                 $params["pr{$i}.ca"] = $item['item_category'];
+            }
+            if (!empty($item['item_variant'])) {
+                $params["pr{$i}.va"] = $item['item_variant'];
             }
             if (isset($item['price'])) {
                 $params["pr{$i}.pr"] = (float) $item['price'];

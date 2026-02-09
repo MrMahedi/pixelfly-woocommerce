@@ -34,6 +34,7 @@ class PixelFly_Admin
         add_action('wp_ajax_pixelfly_fire_event', [$this, 'ajax_fire_event']);
         add_action('wp_ajax_pixelfly_delete_event', [$this, 'ajax_delete_event']);
         add_action('wp_ajax_pixelfly_fire_all_events', [$this, 'ajax_fire_all_events']);
+        add_action('wp_ajax_pixelfly_get_debug_url', [$this, 'ajax_get_debug_url']);
 
         // Add pending events count to menu
         add_filter('add_menu_classes', [$this, 'add_pending_count_bubble']);
@@ -381,6 +382,31 @@ class PixelFly_Admin
             'fired' => $fired,
             'failed' => $failed,
         ]);
+    }
+
+    /**
+     * AJAX: Get debug URL for an event
+     */
+    public function ajax_get_debug_url()
+    {
+        check_ajax_referer('pixelfly_admin_nonce', 'nonce');
+
+        if (!current_user_can('manage_woocommerce')) {
+            wp_send_json_error(['message' => 'Permission denied']);
+        }
+
+        $event_id = isset($_POST['event_id']) ? absint($_POST['event_id']) : 0;
+        if (!$event_id) {
+            wp_send_json_error(['message' => 'Invalid event ID']);
+        }
+
+        $result = PixelFly_Delayed::get_debug_url($event_id);
+
+        if ($result['success']) {
+            wp_send_json_success($result);
+        } else {
+            wp_send_json_error($result);
+        }
     }
 
     /**

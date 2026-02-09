@@ -97,6 +97,9 @@ $pending_events = PixelFly_Delayed::get_pending_events(50);
                             <button type="button" class="button button-small pixelfly-fire-event" data-event-id="<?php echo esc_attr($event->id); ?>">
                                 <?php esc_html_e('Fire', 'pixelfly'); ?>
                             </button>
+                            <button type="button" class="button button-small pixelfly-debug-event" data-event-id="<?php echo esc_attr($event->id); ?>" title="<?php esc_attr_e('Open debug URL in new tab', 'pixelfly'); ?>">
+                                <?php esc_html_e('Debug', 'pixelfly'); ?>
+                            </button>
                             <button type="button" class="button button-small button-link-delete pixelfly-delete-event" data-event-id="<?php echo esc_attr($event->id); ?>">
                                 <?php esc_html_e('Delete', 'pixelfly'); ?>
                             </button>

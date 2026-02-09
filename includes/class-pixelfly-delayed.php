@@ -196,12 +196,26 @@ class PixelFly_Delayed
             'fbc' => isset($_COOKIE['_fbc']) ? sanitize_text_field($_COOKIE['_fbc']) : null,
         ];
 
+        // Add GA Client ID from _ga cookie
+        // Format: GA1.1.XXXXXXXXXX.XXXXXXXXXX - client ID is last two parts
+        if (isset($_COOKIE['_ga'])) {
+            $ga_cookie = sanitize_text_field($_COOKIE['_ga']);
+            $parts = explode('.', $ga_cookie);
+            if (count($parts) >= 4) {
+                $user_data['ga_client_id'] = $parts[2] . '.' . $parts[3];
+            }
+        }
+
         // Filter empty values
         $user_data = array_filter($user_data);
 
         $event_time = time();
 
-        return [
+        // Get UTM parameters from order meta
+        $utm = $this->get_utm_from_order_meta($order);
+
+        // Build event data
+        $event_data = [
             'event' => 'purchase',
             'event_id' => 'purchase_' . $order->get_id() . '_' . $event_time,
             'event_time' => $event_time,
@@ -220,9 +234,37 @@ class PixelFly_Delayed
                 'ip' => $order->get_customer_ip_address(),
                 'user_agent' => $order->get_customer_user_agent(),
                 'is_delayed' => true,
-                'utm' => $this->get_utm_from_order_meta($order),
+                'utm' => $utm,
             ],
         ];
+
+        // Add tracking cookies at root level for easier access by Proxy Container
+        // (They're also in user_data for CAPI format, but root level is easier for PixelFly)
+        if (!empty($user_data['fbp'])) {
+            $event_data['fbp'] = $user_data['fbp'];
+        }
+        if (!empty($user_data['fbc'])) {
+            $event_data['fbc'] = $user_data['fbc'];
+        }
+        if (!empty($user_data['ga_client_id'])) {
+            $event_data['ga_client_id'] = $user_data['ga_client_id'];
+        }
+
+        // Add click IDs at root level for easier access
+        if (!empty($utm['gclid'])) {
+            $event_data['gclid'] = $utm['gclid'];
+        }
+        if (!empty($utm['fbclid'])) {
+            $event_data['fbclid'] = $utm['fbclid'];
+        }
+        if (!empty($utm['ttclid'])) {
+            $event_data['ttclid'] = $utm['ttclid'];
+        }
+        if (!empty($utm['msclkid'])) {
+            $event_data['msclkid'] = $utm['msclkid'];
+        }
+
+        return $event_data;
     }
 
     /**
@@ -230,7 +272,7 @@ class PixelFly_Delayed
      */
     private function get_utm_from_order_meta($order)
     {
-        $utm_fields = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'fbclid', 'gclid', 'ttclid'];
+        $utm_fields = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'fbclid', 'gclid', 'ttclid', 'msclkid'];
         $utm = [];
 
         foreach ($utm_fields as $field) {
@@ -335,5 +377,51 @@ class PixelFly_Delayed
         global $wpdb;
         $table_name = $wpdb->prefix . 'pixelfly_pending_events';
         return $wpdb->delete($table_name, ['id' => $event_id]);
+    }
+
+    /**
+     * Get debug URL for a pending event
+     *
+     * @param int $event_id Event ID
+     * @return array Result with success status and debug_url or error message
+     */
+    public static function get_debug_url($event_id)
+    {
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'pixelfly_pending_events';
+
+        $pending = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$table_name} WHERE id = %d",
+            $event_id
+        ));
+
+        if (!$pending) {
+            return [
+                'success' => false,
+                'message' => __('Event not found.', 'pixelfly'),
+            ];
+        }
+
+        $api = new PixelFly_API();
+        $event_data = json_decode($pending->event_data, true);
+
+        // Update event_time to current time for debugging
+        $event_data['event_time'] = time();
+        $event_data['context']['is_delayed'] = true;
+
+        $debug_url = $api->get_debug_url($event_data);
+
+        if (!$debug_url) {
+            return [
+                'success' => false,
+                'message' => __('sGTM not configured. Please configure sGTM endpoint and Measurement ID in settings.', 'pixelfly'),
+            ];
+        }
+
+        return [
+            'success' => true,
+            'debug_url' => $debug_url,
+            'event_data' => $event_data,
+        ];
     }
 }
