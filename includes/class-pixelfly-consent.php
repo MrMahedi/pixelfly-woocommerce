@@ -81,7 +81,7 @@ class PixelFly_Consent {
      */
     public function get_consent_state() {
         if (isset($_COOKIE[self::CONSENT_COOKIE])) {
-            $consent = json_decode(stripslashes($_COOKIE[self::CONSENT_COOKIE]), true);
+            $consent = json_decode(wp_unslash($_COOKIE[self::CONSENT_COOKIE]), true);
             if (is_array($consent)) {
                 return $consent;
             }
@@ -667,7 +667,7 @@ window.pixelflyConsent = <?php echo wp_json_encode($consent); ?>;
     public function ajax_save_consent() {
         check_ajax_referer('pixelfly_nonce', 'nonce');
 
-        $consent = isset($_POST['consent']) ? json_decode(stripslashes($_POST['consent']), true) : null;
+        $consent = isset($_POST['consent']) ? json_decode(wp_unslash($_POST['consent']), true) : null;
 
         if (!is_array($consent)) {
             wp_send_json_error('Invalid consent data');

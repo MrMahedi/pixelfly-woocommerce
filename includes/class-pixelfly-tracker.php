@@ -106,8 +106,8 @@ class PixelFly_Tracker
     {
         check_ajax_referer('pixelfly_nonce', 'nonce');
 
-        $event_type = isset($_POST['event_type']) ? sanitize_text_field($_POST['event_type']) : '';
-        $event_data = isset($_POST['event_data']) ? $_POST['event_data'] : [];
+        $event_type = isset($_POST['event_type']) ? sanitize_text_field(wp_unslash($_POST['event_type'])) : '';
+        $event_data = isset($_POST['event_data']) ? wp_unslash($_POST['event_data']) : [];
 
         if (!$event_type) {
             wp_send_json_error(['message' => 'Event type required']);
