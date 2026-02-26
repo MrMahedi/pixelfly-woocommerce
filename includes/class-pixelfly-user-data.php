@@ -239,4 +239,20 @@ class PixelFly_User_Data
             'user_agent' => self::get_user_agent(),
         ];
     }
+
+    /**
+     * Check if user data collection is enabled
+     *
+     * @return bool
+     */
+    public static function is_user_data_enabled()
+    {
+        // Check if WooCommerce is active and customer exists
+        if (!function_exists('WC') || !WC()->customer instanceof WC_Customer) {
+            return false;
+        }
+
+        // Check plugin setting (default to enabled)
+        return (bool) get_option('pixelfly_user_data_enabled', true);
+    }
 }

@@ -39,7 +39,8 @@ class PixelFly_Tracker
         add_action('wp_ajax_nopriv_pixelfly_track_event', [$this, 'ajax_track_event']);
 
         // Server-side tracking for immediate events
-        add_action('woocommerce_thankyou', [$this, 'server_side_purchase'], 20, 1);
+        // Priority 5 = runs BEFORE dataLayer (priority 10) so _pixelfly_server_tracked is set
+        add_action('woocommerce_thankyou', [$this, 'server_side_purchase'], 5, 1);
     }
 
     /**
@@ -169,6 +170,13 @@ class PixelFly_Tracker
         if ($result) {
             $order->update_meta_data('_pixelfly_server_tracked', true);
             $order->save();
+
+            // Set static flag to prevent dataLayer from also firing purchase event
+            // This bypasses WooCommerce object caching issues where get_meta() returns stale data
+            if (class_exists('PixelFly_DataLayer')) {
+                PixelFly_DataLayer::$fired_events['purchase_' . $order_id] = true;
+                PixelFly_DataLayer::$fired_events['purchase'] = true;
+            }
         }
     }
 
