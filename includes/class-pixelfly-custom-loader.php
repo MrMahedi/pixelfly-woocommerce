@@ -129,18 +129,17 @@ class PixelFly_Custom_Loader {
         }
 
         ?>
-<!-- PixelFly Custom Loader - Stealth GTM -->
+<!-- PixelFly Custom Loader -->
 <script>
-(function(a,b,c,d,e){
-    a[d]=a[d]||[];
-    a[d].push({'pf.init': new Date().getTime(), event:'pf.run'});
-    var f=b.getElementsByTagName(c)[0],
-        g=b.createElement(c),
-        h=d!='pfData'?'&d='+d:'';
-    g.async=true;
-    g.src='https://<?php echo $domain; ?>/pf.js?c='+e+h;
-    f.parentNode.insertBefore(g,f);
-})(window,document,'script','pfData','<?php echo $stealth_id; ?>');
+(function(w,d,s,l,i){
+    w[l]=w[l]||[];
+    w[l].push({'gtm.start': new Date().getTime(), event:'gtm.js'});
+    var f=d.getElementsByTagName(s)[0],
+        j=d.createElement(s);
+    j.async=true;
+    j.src='https://<?php echo $domain; ?>/pf.js?c='+i;
+    f.parentNode.insertBefore(j,f);
+})(window,document,'script','dataLayer','<?php echo $stealth_id; ?>');
 </script>
 <!-- End PixelFly Custom Loader -->
         <?php
