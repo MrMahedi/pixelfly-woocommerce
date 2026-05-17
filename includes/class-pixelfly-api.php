@@ -598,7 +598,123 @@ class PixelFly_API
     }
 
     /**
-     * Fire event using the configured firing method (PixelFly or sGTM)
+     * Send event to sGTM via Stape Data Client (/data endpoint)
+     *
+     * Posts simple JSON directly to {sgtm_endpoint}/data.
+     * The Stape Data Client in the GTM server container handles field mapping automatically.
+     *
+     * @param array $event_data Stored event data (PixelFly format)
+     * @return bool Success status
+     */
+    public function send_event_to_data_client($event_data)
+    {
+        $endpoint = get_option('pixelfly_sgtm_endpoint', '');
+
+        if (empty($endpoint)) {
+            $this->log_error('sGTM configuration incomplete - endpoint required for Data Client');
+            return false;
+        }
+
+        $user_data = $event_data['user_data'] ?? [];
+        $items     = $event_data['items'] ?? [];
+
+        // Derive client_id from fbp cookie (same format GA4 uses: timestamp.random)
+        // This links the server event to the user's existing GA4 session.
+        $client_id = null;
+        if (!empty($user_data['fbp'])) {
+            $parts = explode('.', $user_data['fbp']);
+            if (count($parts) >= 4) {
+                $client_id = $parts[2] . '.' . $parts[3];
+            }
+        }
+        if (!$client_id) {
+            $random = abs(crc32($user_data['ph'] ?? $event_data['transaction_id'] ?? uniqid()));
+            $client_id = $random . '.' . ($event_data['event_time'] ?? time());
+        }
+
+        // Build the JSON payload for the Stape Data Client
+        $payload = [
+            'event'      => $event_data['event'] ?? 'custom_event',
+            'event_id'   => $event_data['event_id'] ?? '',
+            'event_time' => $event_data['event_time'] ?? time(),
+            'client_id'  => $client_id,
+            'value'      => isset($event_data['value']) ? (float) $event_data['value'] : null,
+            'currency'   => $event_data['currency'] ?? '',
+            'action_source'     => $event_data['action_source'] ?? 'website',
+            'event_source_url'  => $event_data['event_source_url'] ?? '',
+            'transaction_id'    => $event_data['transaction_id'] ?? '',
+            'is_delayed'        => true,
+            'data_source'       => 'server',
+        ];
+
+        // User data
+        if (!empty($user_data)) {
+            $payload['user_data'] = array_filter([
+                'em'          => $user_data['em'] ?? null,
+                'ph'          => $user_data['ph'] ?? null,
+                'fn'          => $user_data['fn'] ?? null,
+                'ln'          => $user_data['ln'] ?? null,
+                'ct'          => $user_data['ct'] ?? null,
+                'st'          => $user_data['st'] ?? null,
+                'zp'          => $user_data['zp'] ?? null,
+                'country'     => $user_data['country'] ?? null,
+                'client_ip_address' => $user_data['client_ip_address'] ?? null,
+                'client_user_agent' => $user_data['client_user_agent'] ?? null,
+                'fbc'         => $user_data['fbc'] ?? null,
+                'fbp'         => $user_data['fbp'] ?? null,
+                'external_id' => $user_data['external_id'] ?? null,
+            ]);
+        }
+
+        // Items / products
+        if (!empty($items)) {
+            $payload['items'] = $items;
+        }
+
+        // Remove null / empty-string values from top level
+        $payload = array_filter($payload, function ($v) {
+            return $v !== null && $v !== '';
+        });
+
+        $url = rtrim($endpoint, '/') . '/data';
+
+        $response = wp_remote_post($url, [
+            'timeout' => 10,
+            'headers' => [
+                'Content-Type' => 'application/json',
+            ],
+            'body' => wp_json_encode($payload),
+        ]);
+
+        if (is_wp_error($response)) {
+            $this->log_error('Data Client request failed: ' . $response->get_error_message(), $event_data);
+            return false;
+        }
+
+        $response_code = wp_remote_retrieve_response_code($response);
+        $response_body = wp_remote_retrieve_body($response);
+
+        if (get_option('pixelfly_event_logging', false)) {
+            $this->log_event($event_data, $response_code, $response_body);
+        }
+
+        if ($response_code >= 200 && $response_code < 300) {
+            $this->debug_log('Event sent to sGTM successfully via /data (Data Client)', [
+                'event'          => $event_data['event'] ?? 'unknown',
+                'transaction_id' => $event_data['transaction_id'] ?? 'unknown',
+            ]);
+            return true;
+        }
+
+        $this->log_error('Data Client returned error: ' . $response_code, [
+            'response' => $response_body,
+            'event'    => $event_data,
+        ]);
+        return false;
+    }
+
+    /**
+     * Fire event using the configured firing method (PixelFly, sGTM, or Data Client)
      *
      * @param array $event_data Event data to send
      * @return bool|array Success status
@@ -609,6 +725,10 @@ class PixelFly_API
 
         if ($firing_method === 'sgtm') {
             return $this->send_event_to_sgtm($event_data);
+        }
+
+        if ($firing_method === 'data_client') {
+            return $this->send_event_to_data_client($event_data);
         }
 
         return $this->send_event($event_data);
@@ -839,7 +959,9 @@ class PixelFly_API
     public static function get_firing_method_label()
     {
         $method = get_option('pixelfly_delayed_firing_method', 'sgtm');
-        return $method === 'sgtm' ? 'sGTM' : 'PixelFly';
+        if ($method === 'sgtm') return 'sGTM (GA4 Client)';
+        if ($method === 'data_client') return 'sGTM (Data Client)';
+        return 'PixelFly';
     }
 
     /**

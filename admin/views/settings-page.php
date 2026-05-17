@@ -359,8 +359,15 @@ $all_roles = wp_roles()->get_names();
                             <label class="pixelfly-firing-method <?php echo $delayed_firing_method === 'sgtm' ? 'active' : ''; ?>">
                                 <input type="radio" name="pixelfly_delayed_firing_method" value="sgtm" <?php checked($delayed_firing_method, 'sgtm'); ?>>
                                 <div>
-                                    <strong><?php esc_html_e('sGTM', 'pixelfly'); ?></strong>
-                                    <p class="description" style="margin: 2px 0 0;"><?php esc_html_e('Use this if your PixelFly container is an sGTM container. Delayed events are sent via GA4 Measurement Protocol to your server-side GTM, which distributes to all configured tags (Google Ads, Meta, etc.).', 'pixelfly'); ?></p>
+                                    <strong><?php esc_html_e('sGTM (GA4 Client)', 'pixelfly'); ?></strong>
+                                    <p class="description" style="margin: 2px 0 0;"><?php esc_html_e('Use this if your PixelFly container is an sGTM container. Delayed events are sent via GA4 Measurement Protocol (/g/collect) to your server-side GTM, which distributes to all configured tags (Google Ads, Meta, etc.).', 'pixelfly'); ?></p>
+                                </div>
+                            </label>
+                            <label class="pixelfly-firing-method <?php echo $delayed_firing_method === 'data_client' ? 'active' : ''; ?>">
+                                <input type="radio" name="pixelfly_delayed_firing_method" value="data_client" <?php checked($delayed_firing_method, 'data_client'); ?>>
+                                <div>
+                                    <strong><?php esc_html_e('sGTM (Data Client)', 'pixelfly'); ?></strong>
+                                    <p class="description" style="margin: 2px 0 0;"><?php esc_html_e('Use this if you have the Stape Data Client installed in your sGTM container. Delayed events are sent as simple JSON to the /data endpoint — no GA4 Measurement ID required.', 'pixelfly'); ?></p>
                                 </div>
                             </label>
                         </div>
@@ -372,8 +379,8 @@ $all_roles = wp_roles()->get_names();
                 </tr>
             </table>
 
-            <!-- sGTM Configuration (shown when sGTM firing method selected) -->
-            <div id="pixelfly-sgtm-config" style="<?php echo $delayed_firing_method !== 'sgtm' ? 'display:none;' : ''; ?> margin-top: 10px; padding: 15px; background: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 4px;">
+            <!-- sGTM Configuration (shown when sGTM or Data Client firing method selected) -->
+            <div id="pixelfly-sgtm-config" style="<?php echo !in_array($delayed_firing_method, ['sgtm', 'data_client']) ? 'display:none;' : ''; ?> margin-top: 10px; padding: 15px; background: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 4px;">
                 <h3 style="margin-top: 0;"><?php esc_html_e('sGTM Configuration', 'pixelfly'); ?></h3>
                 <table class="form-table" style="margin-top: 0;">
                     <tr>
@@ -751,7 +758,11 @@ $all_roles = wp_roles()->get_names();
         // Toggle firing method config
         function toggleFiringMethod() {
             var method = $('input[name="pixelfly_delayed_firing_method"]:checked').val();
-            $('#pixelfly-sgtm-config').toggle(method === 'sgtm');
+            var isSgtm = (method === 'sgtm' || method === 'data_client');
+            $('#pixelfly-sgtm-config').toggle(isSgtm);
+            // Measurement ID is only needed for GA4 Client (/g/collect), not Data Client (/data)
+            $('#pixelfly-sgtm-config').find('tr').has('#pixelfly_sgtm_measurement_id').toggle(method === 'sgtm');
+            $('#pixelfly-sgtm-config').find('tr').has('#pixelfly_sgtm_api_secret').toggle(method === 'sgtm');
 
             // Update active class
             $('.pixelfly-firing-method').removeClass('active');
