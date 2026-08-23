@@ -4,7 +4,7 @@ Tags: server side tracking, sgtm, gtm datalayer, conversion tracking, consent mo
 Requires at least: 6.0
 Tested up to: 6.4
 Requires PHP: 7.4
-Stable tag: 1.1.0
+Stable tag: 1.2.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -18,7 +18,7 @@ PixelFly provides complete server-side conversion tracking and GTM DataLayer int
 
 * **Server-side tracking** — Send events via sGTM (GA4 Measurement Protocol) or PixelFly proxy to Meta CAPI, GA4, TikTok, etc.
 * **GTM DataLayer** — Full GA4-compatible dataLayer with automatic GTM script injection
-* **Delayed purchase events** — Store COD/manual payment orders and fire conversion events only after order confirmation
+* **COD Order Protection** — Hold COD in PixelFly dashboard via GTM/sGTM; legacy delayed mode still available
 * **Consent Mode V2** — Built-in cookie consent banner with Google Consent Mode V2 support for GDPR/CCPA compliance
 * **Custom script loader** — Load GTM and tracking scripts through your own domain to bypass ad blockers
 * **Enhanced conversions** — SHA-256 hashed user data (email, phone, name, address) for improved matching
@@ -38,9 +38,15 @@ PixelFly provides complete server-side conversion tracking and GTM DataLayer int
 * `add_payment_info` — Payment method selection
 * `purchase` — Order completion
 
-= Delayed Purchase Events =
+= COD Order Protection (v1.2.0+) =
 
-For COD (Cash on Delivery) and manual payment orders, the plugin stores purchase events and fires them when the order status changes to "Processing" or "Completed". Events can be fired via sGTM (GA4 Measurement Protocol) or PixelFly proxy — ensuring you only track confirmed conversions.
+For Cash on Delivery orders, choose **GTM / sGTM** mode in PixelFly → COD Order Protection settings. The plugin pushes `purchase` + `payment_method` to dataLayer; your server GTM tag holds the order at `/cod/hold`. Approve and fire from the PixelFly dashboard or via webhook when WooCommerce status changes.
+
+See the full guide: https://pixelfly.io/guides/cod-offline-conversions-server-gtm
+
+= Delayed Purchase Events (legacy) =
+
+For COD (Cash on Delivery) and manual payment orders, the plugin can store purchase events locally and fire them when the order status changes to "Processing" or "Completed". Use **Legacy** mode only for existing stores not yet migrated to COD Order Protection.
 
 = Consent Mode V2 =
 
@@ -87,7 +93,7 @@ Yes, enable the DataLayer option to output GA4-compatible events for GTM. You ca
 
 = What is delayed purchase tracking? =
 
-For COD orders, the purchase event is stored and only fired when the order status changes to Processing or Completed. This prevents tracking unconfirmed orders.
+For COD orders, hold the purchase until confirmed. Use **COD Order Protection (GTM mode)** in v1.2.0+ with the PixelFly dashboard, or **Legacy** mode to store events in WordPress.
 
 = Does Consent Mode V2 work with sGTM? =
 
@@ -102,6 +108,14 @@ Yes. Consent Mode V2 operates at the browser level — consent signals are carri
 5. Custom script loader setup
 
 == Changelog ==
+
+= 1.2.1 =
+* dataLayer purchase includes gclid and fbclid (order meta + cookie fallback) for sGTM COD hold
+
+= 1.2.0 =
+* COD Order Protection: GTM/sGTM mode, plugin hold backup, legacy delayed mode
+* dataLayer purchase includes payment_method
+* Optional auto-confirm webhook to /cod/webhook
 
 = 1.1.0 =
 * Added sGTM as firing method for delayed purchase events (GA4 Measurement Protocol)
@@ -120,6 +134,9 @@ Yes. Consent Mode V2 operates at the browser level — consent signals are carri
 * Admin pending events management
 
 == Upgrade Notice ==
+
+= 1.2.0 =
+COD Order Protection: switch to GTM/sGTM mode for new PixelFly held-events flow. See https://pixelfly.io/guides/cod-offline-conversions-server-gtm
 
 = 1.1.0 =
 Major update: sGTM support, Consent Mode V2, Custom Script Loader, and Enhanced Conversions.

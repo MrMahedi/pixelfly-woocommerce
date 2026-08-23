@@ -805,16 +805,14 @@ class PixelFly_DataLayer
             return;
         }
 
-        // Check delayed payment methods
-        $delayed_enabled = get_option('pixelfly_delayed_enabled', true);
-        $delayed_methods = get_option('pixelfly_delayed_payment_methods', ['cod']);
         $payment_method = $order->get_payment_method();
 
-        if ($delayed_enabled && in_array($payment_method, (array) $delayed_methods)) {
+        // Legacy delayed: skip dataLayer purchase (old plugin DB hold).
+        if (PixelFly_COD_Protection::should_skip_datalayer_purchase($payment_method)) {
             $debug = get_option('pixelfly_debug_mode', false);
             if ($debug) {
                 ?>
-                <script>console.log('[PixelFly] Purchase event pending - delayed payment method (<?php echo esc_js($payment_method); ?>');</script>
+                <script>console.log('[PixelFly] Purchase skipped — legacy delayed (<?php echo esc_js($payment_method); ?>)');</script>
                 <?php
             }
             self::javascript_delete_cookie(self::PURCHASE_COOKIE_KEY);
@@ -835,6 +833,7 @@ class PixelFly_DataLayer
             'eventId' => $purchase_data['event_id'],
             'ecomm_pagetype' => 'purchase',
             'new_customer' => $is_new_customer ? 'true' : 'false',
+            'payment_method' => $payment_method,
             'orderData' => $purchase_data['orderData'],
             'ecommerce' => $purchase_data['ecommerce'],
         ]);
@@ -844,6 +843,29 @@ class PixelFly_DataLayer
         if (!empty($user_data)) {
             $data_layer['user_data'] = $user_data;
             $data_layer['user_data']['new_customer'] = $is_new_customer ? 'true' : 'false';
+        }
+
+        // Click IDs for sGTM COD hold + Google Ads / Meta attribution
+        $click_ids = PixelFly_UTM_Capture::get_click_ids_for_order($order);
+        foreach (['gclid', 'fbclid'] as $click_key) {
+            if (empty($click_ids[$click_key])) {
+                continue;
+            }
+            $data_layer[$click_key] = $click_ids[$click_key];
+            if (!isset($data_layer['user_data'])) {
+                $data_layer['user_data'] = [];
+            }
+            $data_layer['user_data'][$click_key] = $click_ids[$click_key];
+        }
+
+        // Root-level PII for sGTM COD tag (easier than nested user_data alone)
+        $billing_email = $order->get_billing_email();
+        if ($billing_email) {
+            $data_layer['email'] = strtolower($billing_email);
+        }
+        $billing_phone = $order->get_billing_phone();
+        if ($billing_phone) {
+            $data_layer['phone'] = preg_replace('/[^0-9+]/', '', $billing_phone);
         }
 
         // Mark order as tracked

@@ -153,7 +153,7 @@ class PixelFly_UTM_Capture
             // first-party cookies (_gcl_aw / _gcl_dc) that gtag.js writes. This
             // covers shoppers whose click id never reached our own cookie/session.
             if ($value === '' && $field === 'gclid') {
-                $value = $this->gclid_from_google_cookie();
+                $value = self::gclid_from_google_cookie();
             }
 
             if ($value !== '') {
@@ -178,6 +178,42 @@ class PixelFly_UTM_Capture
     }
 
     /**
+     * Click IDs for dataLayer / sGTM (order meta, then first-party cookies).
+     */
+    public static function get_click_ids_for_order($order): array
+    {
+        $fields = ['gclid', 'fbclid', 'ttclid', 'msclkid'];
+        $out = [];
+
+        if ($order instanceof WC_Order) {
+            foreach ($fields as $field) {
+                $value = $order->get_meta('_' . $field);
+                if ($value !== '' && $value !== null) {
+                    $out[$field] = $value;
+                }
+            }
+        }
+
+        foreach ($fields as $field) {
+            if (!empty($out[$field])) {
+                continue;
+            }
+            if (!empty($_COOKIE['pixelfly_' . $field])) {
+                $out[$field] = sanitize_text_field(wp_unslash($_COOKIE['pixelfly_' . $field]));
+            }
+        }
+
+        if (empty($out['gclid'])) {
+            $gclid = self::gclid_from_google_cookie();
+            if ($gclid !== '') {
+                $out['gclid'] = $gclid;
+            }
+        }
+
+        return array_filter($out);
+    }
+
+    /**
      * Extract a gclid from Google's own first-party cookies.
      *
      * gtag.js stores the click id in _gcl_aw (Search) and _gcl_dc (Display) in the
@@ -185,7 +221,7 @@ class PixelFly_UTM_Capture
      *
      * @return string The gclid, or '' if none is present.
      */
-    private function gclid_from_google_cookie()
+    public static function gclid_from_google_cookie()
     {
         foreach (['_gcl_aw', '_gcl_dc'] as $cookie) {
             if (empty($_COOKIE[$cookie])) {
@@ -194,7 +230,6 @@ class PixelFly_UTM_Capture
 
             $parts = explode('.', sanitize_text_field(wp_unslash($_COOKIE[$cookie])));
 
-            // Expect GCL.<timestamp>.<gclid>; the gclid is everything after the 2nd dot.
             if (count($parts) >= 3) {
                 return implode('.', array_slice($parts, 2));
             }

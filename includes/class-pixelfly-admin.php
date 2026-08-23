@@ -125,6 +125,18 @@ class PixelFly_Admin
         register_setting('pixelfly_settings', 'pixelfly_delayed_payment_methods');
         register_setting('pixelfly_settings', 'pixelfly_delayed_fire_on_status');
 
+        // COD Order Protection (PixelFly dashboard held_events)
+        register_setting('pixelfly_settings', 'pixelfly_cod_mode');
+        register_setting('pixelfly_settings', 'pixelfly_cod_hold_url', [
+            'sanitize_callback' => 'esc_url_raw',
+        ]);
+        register_setting('pixelfly_settings', 'pixelfly_cod_server_hold_backup');
+        register_setting('pixelfly_settings', 'pixelfly_cod_webhook_enabled');
+        register_setting('pixelfly_settings', 'pixelfly_cod_webhook_secret', [
+            'sanitize_callback' => 'sanitize_text_field',
+        ]);
+        register_setting('pixelfly_settings', 'pixelfly_cod_webhook_statuses');
+
         // sGTM settings
         register_setting('pixelfly_settings', 'pixelfly_sgtm_endpoint');
         register_setting('pixelfly_settings', 'pixelfly_sgtm_measurement_id');

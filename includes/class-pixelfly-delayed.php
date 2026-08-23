@@ -44,12 +44,13 @@ class PixelFly_Delayed
      */
     public function is_enabled_for_order($order)
     {
-        if (!get_option('pixelfly_delayed_enabled', true)) {
+        // Legacy delayed only — not when using PixelFly COD Order Protection.
+        if (!PixelFly_COD_Protection::is_legacy_delayed()) {
             return false;
         }
 
         $enabled_methods = get_option('pixelfly_delayed_payment_methods', ['cod']);
-        return in_array($order->get_payment_method(), $enabled_methods);
+        return in_array($order->get_payment_method(), $enabled_methods, true);
     }
 
     /**

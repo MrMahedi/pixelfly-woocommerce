@@ -17,6 +17,13 @@ $delayed_enabled = get_option('pixelfly_delayed_enabled', true);
 $delayed_firing_method = get_option('pixelfly_delayed_firing_method', 'sgtm');
 $delayed_methods = get_option('pixelfly_delayed_payment_methods', ['cod']);
 $delayed_statuses = get_option('pixelfly_delayed_fire_on_status', ['processing', 'completed']);
+$cod_mode = get_option('pixelfly_cod_mode', 'legacy');
+$cod_hold_url = get_option('pixelfly_cod_hold_url', '');
+$cod_server_hold_backup = get_option('pixelfly_cod_server_hold_backup', false);
+$cod_webhook_enabled = get_option('pixelfly_cod_webhook_enabled', false);
+$cod_webhook_secret = get_option('pixelfly_cod_webhook_secret', '');
+$cod_webhook_statuses = get_option('pixelfly_cod_webhook_statuses', ['processing', 'completed']);
+$cod_hold_url_preview = PixelFly_COD_Protection::hold_url();
 $sgtm_endpoint = get_option('pixelfly_sgtm_endpoint', '');
 $sgtm_measurement_id = get_option('pixelfly_sgtm_measurement_id', '');
 $sgtm_api_secret = get_option('pixelfly_sgtm_api_secret', '');
@@ -55,7 +62,7 @@ $all_roles = wp_roles()->get_names();
         <a href="#datalayer" class="nav-tab" data-tab="datalayer"><?php esc_html_e('DataLayer Settings', 'pixelfly'); ?></a>
         <a href="#custom-loader" class="nav-tab" data-tab="custom-loader"><?php esc_html_e('Custom Loader', 'pixelfly'); ?></a>
         <a href="#consent" class="nav-tab" data-tab="consent"><?php esc_html_e('Consent Mode V2', 'pixelfly'); ?></a>
-        <a href="#delayed" class="nav-tab" data-tab="delayed"><?php esc_html_e('Delayed Purchase Events', 'pixelfly'); ?></a>
+        <a href="#delayed" class="nav-tab" data-tab="delayed"><?php esc_html_e('COD Order Protection', 'pixelfly'); ?></a>
         <a href="#advanced" class="nav-tab" data-tab="advanced"><?php esc_html_e('Advanced Settings', 'pixelfly'); ?></a>
     </nav>
 
@@ -328,14 +335,118 @@ $all_roles = wp_roles()->get_names();
 
         </div>
 
-        <!-- Delayed Purchase Events -->
+        <!-- COD Order Protection -->
         <div class="pixelfly-tab-content" id="delayed" data-tab="delayed">
         <div class="pixelfly-card">
-            <h2><?php esc_html_e('Delayed Purchase Events', 'pixelfly'); ?></h2>
-            <p class="description"><?php esc_html_e('For COD/manual payment orders, store purchase events and fire them when the order is confirmed.', 'pixelfly'); ?></p>
+            <h2><?php esc_html_e('COD Order Protection', 'pixelfly'); ?></h2>
+            <p class="description"><?php esc_html_e('Control how Cash on Delivery (COD) purchase events are held and fired. Use GTM + PixelFly dashboard for the recommended setup.', 'pixelfly'); ?></p>
 
             <table class="form-table">
                 <tr>
+                    <th scope="row"><?php esc_html_e('COD Handling Mode', 'pixelfly'); ?></th>
+                    <td>
+                        <fieldset class="pixelfly-cod-modes">
+                            <label style="display: block; margin-bottom: 12px;">
+                                <input type="radio" name="pixelfly_cod_mode" value="gtm" <?php checked($cod_mode, 'gtm'); ?>>
+                                <strong><?php esc_html_e('GTM / sGTM (recommended)', 'pixelfly'); ?></strong>
+                                <p class="description" style="margin: 4px 0 0 24px;">
+                                    <?php esc_html_e('Push purchase + payment_method to dataLayer. GTM/sGTM holds COD via PixelFly COD Protection tag. Approve & fire from PixelFly dashboard.', 'pixelfly'); ?>
+                                </p>
+                            </label>
+                            <label style="display: block; margin-bottom: 12px;">
+                                <input type="radio" name="pixelfly_cod_mode" value="plugin_hold" <?php checked($cod_mode, 'plugin_hold'); ?>>
+                                <strong><?php esc_html_e('Plugin hold (PHP backup)', 'pixelfly'); ?></strong>
+                                <p class="description" style="margin: 4px 0 0 24px;">
+                                    <?php esc_html_e('WooCommerce POSTs directly to /cod/hold. Use when GTM hold is unavailable.', 'pixelfly'); ?>
+                                </p>
+                            </label>
+                            <label style="display: block; margin-bottom: 12px;">
+                                <input type="radio" name="pixelfly_cod_mode" value="legacy" <?php checked($cod_mode, 'legacy'); ?>>
+                                <strong><?php esc_html_e('Legacy delayed events (deprecated)', 'pixelfly'); ?></strong>
+                                <p class="description" style="margin: 4px 0 0 24px;">
+                                    <?php esc_html_e('Old plugin DB hold + auto-fire on order status. Does not use PixelFly Held Events dashboard.', 'pixelfly'); ?>
+                                </p>
+                            </label>
+                        </fieldset>
+                    </td>
+                </tr>
+            </table>
+
+            <div class="pixelfly-info-box cod-protection-setting" style="margin-bottom: 20px;">
+                <strong><?php esc_html_e('GTM setup (sGTM container):', 'pixelfly'); ?></strong>
+                <ul>
+                    <li><?php esc_html_e('Web GTM: always push purchase to sGTM with payment_method, email, phone, gclid.', 'pixelfly'); ?></li>
+                    <li><?php esc_html_e('Browser ads Purchase tags: prepaid only (payment_method ≠ cod).', 'pixelfly'); ?></li>
+                    <li><?php esc_html_e('sGTM: PixelFly COD Protection tag on purchase + payment_method = cod.', 'pixelfly'); ?></li>
+                </ul>
+            </div>
+
+            <table class="form-table cod-protection-setting">
+                <tr>
+                    <th scope="row">
+                        <label for="pixelfly_cod_hold_url"><?php esc_html_e('Hold URL (optional)', 'pixelfly'); ?></label>
+                    </th>
+                    <td>
+                        <input type="url" id="pixelfly_cod_hold_url" name="pixelfly_cod_hold_url" value="<?php echo esc_attr($cod_hold_url); ?>" class="regular-text" placeholder="https://server.yourstore.com/cod/hold">
+                        <p class="description">
+                            <?php esc_html_e('Leave blank to use Custom Loader domain or PixelFly endpoint.', 'pixelfly'); ?>
+                            <?php esc_html_e('Resolved URL:', 'pixelfly'); ?> <code><?php echo esc_html($cod_hold_url_preview); ?></code>
+                        </p>
+                    </td>
+                </tr>
+                <tr class="cod-gtm-only">
+                    <th scope="row"><?php esc_html_e('Server-side hold backup', 'pixelfly'); ?></th>
+                    <td>
+                        <label>
+                            <input type="checkbox" name="pixelfly_cod_server_hold_backup" value="1" <?php checked($cod_server_hold_backup); ?>>
+                            <?php esc_html_e('Also POST /cod/hold from WooCommerce (in addition to GTM)', 'pixelfly'); ?>
+                        </label>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><?php esc_html_e('Auto-confirm webhook', 'pixelfly'); ?></th>
+                    <td>
+                        <label>
+                            <input type="checkbox" name="pixelfly_cod_webhook_enabled" value="1" <?php checked($cod_webhook_enabled); ?> id="pixelfly_cod_webhook_enabled">
+                            <?php esc_html_e('Fire held COD when WooCommerce order reaches selected statuses', 'pixelfly'); ?>
+                        </label>
+                        <p class="description">
+                            <?php esc_html_e('Requires webhook secret from PixelFly COD Power-up. Sends to', 'pixelfly'); ?>
+                            <code><?php echo esc_html(PixelFly_COD_Protection::webhook_url()); ?></code>
+                        </p>
+                    </td>
+                </tr>
+                <tr class="cod-webhook-setting">
+                    <th scope="row">
+                        <label for="pixelfly_cod_webhook_secret"><?php esc_html_e('Webhook Secret', 'pixelfly'); ?></label>
+                    </th>
+                    <td>
+                        <input type="password" id="pixelfly_cod_webhook_secret" name="pixelfly_cod_webhook_secret" value="<?php echo esc_attr($cod_webhook_secret); ?>" class="regular-text" autocomplete="new-password">
+                    </td>
+                </tr>
+                <tr class="cod-webhook-setting">
+                    <th scope="row"><?php esc_html_e('Webhook on Status', 'pixelfly'); ?></th>
+                    <td>
+                        <?php foreach ($order_statuses as $status => $label): ?>
+                            <?php if (in_array($status, ['processing', 'completed', 'cancelled'], true)): ?>
+                                <label style="display: block; margin-bottom: 5px;">
+                                    <input type="checkbox" name="pixelfly_cod_webhook_statuses[]" value="<?php echo esc_attr($status); ?>" <?php checked(in_array($status, (array) $cod_webhook_statuses, true)); ?>>
+                                    <?php echo esc_html($label); ?>
+                                </label>
+                            <?php endif; ?>
+                        <?php endforeach; ?>
+                        <p class="description"><?php esc_html_e('processing/completed confirm the hold; cancelled rejects it.', 'pixelfly'); ?></p>
+                    </td>
+                </tr>
+            </table>
+
+            <hr class="legacy-delayed-divider" style="margin: 24px 0;">
+
+            <h3 class="legacy-delayed-heading"><?php esc_html_e('Legacy Delayed Purchase Events', 'pixelfly'); ?></h3>
+            <p class="description legacy-delayed-heading"><?php esc_html_e('Only used when COD Handling Mode is set to Legacy above.', 'pixelfly'); ?></p>
+
+            <table class="form-table">
+                <tr class="legacy-delayed-setting">
                     <th scope="row"><?php esc_html_e('Enable Delayed Events', 'pixelfly'); ?></th>
                     <td>
                         <label>
@@ -345,7 +456,7 @@ $all_roles = wp_roles()->get_names();
                         <p class="description"><?php esc_html_e('When disabled, purchase events will fire immediately on thank you page for ALL payment methods.', 'pixelfly'); ?></p>
                     </td>
                 </tr>
-                <tr class="delayed-setting">
+                <tr class="legacy-delayed-setting delayed-setting">
                     <th scope="row"><?php esc_html_e('Firing Method', 'pixelfly'); ?></th>
                     <td>
                         <div class="pixelfly-firing-methods">
@@ -379,8 +490,8 @@ $all_roles = wp_roles()->get_names();
                 </tr>
             </table>
 
-            <!-- sGTM Configuration (shown when sGTM or Data Client firing method selected) -->
-            <div id="pixelfly-sgtm-config" style="<?php echo !in_array($delayed_firing_method, ['sgtm', 'data_client']) ? 'display:none;' : ''; ?> margin-top: 10px; padding: 15px; background: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 4px;">
+            <!-- sGTM Configuration (legacy delayed only) -->
+            <div id="pixelfly-sgtm-config" class="legacy-delayed-setting delayed-setting" style="<?php echo !in_array($delayed_firing_method, ['sgtm', 'data_client']) ? 'display:none;' : ''; ?> margin-top: 10px; padding: 15px; background: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 4px;">
                 <h3 style="margin-top: 0;"><?php esc_html_e('sGTM Configuration', 'pixelfly'); ?></h3>
                 <table class="form-table" style="margin-top: 0;">
                     <tr>
@@ -423,7 +534,7 @@ $all_roles = wp_roles()->get_names();
             </div>
 
             <table class="form-table">
-                <tr class="delayed-setting">
+                <tr class="legacy-delayed-setting delayed-setting">
                     <th scope="row"><?php esc_html_e('Payment Methods', 'pixelfly'); ?></th>
                     <td>
                         <?php if (!empty($payment_methods)): ?>
@@ -439,7 +550,7 @@ $all_roles = wp_roles()->get_names();
                         <p class="description"><?php esc_html_e('Select payment methods that should use delayed purchase events.', 'pixelfly'); ?></p>
                     </td>
                 </tr>
-                <tr class="delayed-setting">
+                <tr class="legacy-delayed-setting delayed-setting">
                     <th scope="row"><?php esc_html_e('Fire on Status Change', 'pixelfly'); ?></th>
                     <td>
                         <?php foreach ($order_statuses as $status => $label): ?>
@@ -683,10 +794,40 @@ $all_roles = wp_roles()->get_names();
             switchTab(hash);
         }
 
-        // Toggle delayed settings visibility
+        // COD mode toggles legacy vs PixelFly COD Protection settings
+        function toggleCodModeSettings() {
+            var mode = $('input[name="pixelfly_cod_mode"]:checked').val();
+            var isLegacy = mode === 'legacy';
+            var isGtm = mode === 'gtm';
+            var isProtection = mode === 'gtm' || mode === 'plugin_hold';
+
+            $('.legacy-delayed-setting, .legacy-delayed-heading, .legacy-delayed-divider').toggle(isLegacy);
+            $('.cod-protection-setting').toggle(isProtection);
+            $('.cod-gtm-only').toggle(isGtm);
+
+            if (isLegacy) {
+                toggleDelayedSettings();
+            }
+            toggleCodWebhookSettings();
+        }
+
+        $('input[name="pixelfly_cod_mode"]').on('change', toggleCodModeSettings);
+        toggleCodModeSettings();
+
+        function toggleCodWebhookSettings() {
+            var enabled = $('#pixelfly_cod_webhook_enabled').is(':checked');
+            var isProtection = ['gtm', 'plugin_hold'].indexOf($('input[name="pixelfly_cod_mode"]:checked').val()) >= 0;
+            $('.cod-webhook-setting').toggle(enabled && isProtection);
+        }
+
+        $('#pixelfly_cod_webhook_enabled').on('change', toggleCodWebhookSettings);
+        toggleCodWebhookSettings();
+
+        // Toggle delayed settings visibility (legacy mode)
         function toggleDelayedSettings() {
             var enabled = $('#pixelfly_delayed_enabled').is(':checked');
-            $('.delayed-setting').toggle(enabled);
+            var isLegacy = $('input[name="pixelfly_cod_mode"]:checked').val() === 'legacy';
+            $('.delayed-setting').toggle(isLegacy && enabled);
         }
 
         $('#pixelfly_delayed_enabled').on('change', toggleDelayedSettings);

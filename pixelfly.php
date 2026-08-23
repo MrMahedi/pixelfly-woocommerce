@@ -4,7 +4,7 @@
  * Plugin Name: PixelFly – Server Side Tracking | GTM DataLayer | Delayed Purchase | Consent V2 | Custom Loader
  * Plugin URI: https://pixelfly.io
  * Description: Server-side conversion tracking via sGTM or proxy, GTM DataLayer events, delayed purchase events for COD orders, Consent Mode V2, and custom script loader to bypass ad blockers.
- * Version: 1.1.0
+ * Version: 1.2.1
  * Author: PixelFly
  * Author URI: https://pixelfly.io
  * Text Domain: pixelfly
@@ -22,7 +22,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Plugin constants
-define('PIXELFLY_VERSION', '1.1.0');
+define('PIXELFLY_VERSION', '1.2.1');
 define('PIXELFLY_PLUGIN_FILE', __FILE__);
 define('PIXELFLY_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('PIXELFLY_PLUGIN_URL', plugin_dir_url(__FILE__));
@@ -139,14 +139,19 @@ final class PixelFly_WooCommerce
         // DataLayer works independently (for GTM) - only requires datalayer_enabled
         if (get_option('pixelfly_datalayer_enabled', true)) {
             new PixelFly_DataLayer();
+            new PixelFly_UTM_Capture();
         }
 
         // Server-side tracking requires API key
         if ($this->is_enabled()) {
             new PixelFly_Tracker();
             new PixelFly_Delayed();
-            new PixelFly_UTM_Capture();
+            if (!get_option('pixelfly_datalayer_enabled', true)) {
+                new PixelFly_UTM_Capture();
+            }
         }
+
+        new PixelFly_COD_Protection();
     }
 
     /**
@@ -158,10 +163,11 @@ final class PixelFly_WooCommerce
         require_once PIXELFLY_PLUGIN_DIR . 'includes/class-pixelfly-api.php';
         require_once PIXELFLY_PLUGIN_DIR . 'includes/class-pixelfly-user-data.php';
         require_once PIXELFLY_PLUGIN_DIR . 'includes/class-pixelfly-events.php';
+        require_once PIXELFLY_PLUGIN_DIR . 'includes/class-pixelfly-cod-protection.php';
+        require_once PIXELFLY_PLUGIN_DIR . 'includes/class-pixelfly-utm-capture.php';
         require_once PIXELFLY_PLUGIN_DIR . 'includes/class-pixelfly-datalayer.php';
         require_once PIXELFLY_PLUGIN_DIR . 'includes/class-pixelfly-tracker.php';
         require_once PIXELFLY_PLUGIN_DIR . 'includes/class-pixelfly-delayed.php';
-        require_once PIXELFLY_PLUGIN_DIR . 'includes/class-pixelfly-utm-capture.php';
         require_once PIXELFLY_PLUGIN_DIR . 'includes/class-pixelfly-consent.php';
         require_once PIXELFLY_PLUGIN_DIR . 'includes/class-pixelfly-custom-loader.php';
     }
@@ -222,6 +228,12 @@ final class PixelFly_WooCommerce
         add_option('pixelfly_delayed_enabled', true);
         add_option('pixelfly_delayed_payment_methods', ['cod']);
         add_option('pixelfly_delayed_fire_on_status', ['processing', 'completed']);
+        add_option('pixelfly_cod_mode', 'legacy');
+        add_option('pixelfly_cod_hold_url', '');
+        add_option('pixelfly_cod_server_hold_backup', false);
+        add_option('pixelfly_cod_webhook_enabled', false);
+        add_option('pixelfly_cod_webhook_secret', '');
+        add_option('pixelfly_cod_webhook_statuses', ['processing', 'completed']);
         add_option('pixelfly_debug_mode', false);
         add_option('pixelfly_event_logging', false);
 

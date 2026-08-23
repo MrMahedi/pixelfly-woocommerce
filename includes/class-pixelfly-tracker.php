@@ -153,13 +153,11 @@ class PixelFly_Tracker
             return;
         }
 
-        // Check if delayed events are enabled for this payment method
-        $delayed_enabled = get_option('pixelfly_delayed_enabled', true);
-        $delayed_methods = get_option('pixelfly_delayed_payment_methods', ['cod']);
         $payment_method = $order->get_payment_method();
 
-        if ($delayed_enabled && in_array($payment_method, $delayed_methods)) {
-            // Will be handled by delayed system
+        // Legacy delayed or COD protection — no immediate server-side purchase for COD.
+        if (PixelFly_COD_Protection::should_skip_datalayer_purchase($payment_method)
+            || (PixelFly_COD_Protection::uses_cod_protection() && PixelFly_COD_Protection::is_cod_order($order))) {
             return;
         }
 
