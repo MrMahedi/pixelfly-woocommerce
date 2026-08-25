@@ -30,6 +30,7 @@ $sgtm_api_secret = get_option('pixelfly_sgtm_api_secret', '');
 $debug_mode = get_option('pixelfly_debug_mode', false);
 $event_logging = get_option('pixelfly_event_logging', false);
 $excluded_roles = get_option('pixelfly_excluded_roles', []);
+$cookie_keeper_enabled = get_option('pixelfly_cookie_keeper_enabled', false);
 
 // Custom Loader settings
 $custom_loader_enabled = get_option('pixelfly_custom_loader_enabled', false);
@@ -575,6 +576,20 @@ $all_roles = wp_roles()->get_names();
             <h2><?php esc_html_e('Advanced Settings', 'pixelfly'); ?></h2>
 
             <table class="form-table">
+                <tr>
+                    <th scope="row"><?php esc_html_e('Cookie Keeper', 'pixelfly'); ?></th>
+                    <td>
+                        <input type="hidden" name="pixelfly_cookie_keeper_enabled" value="0">
+                        <label>
+                            <input type="checkbox" name="pixelfly_cookie_keeper_enabled" value="1" <?php checked($cookie_keeper_enabled); ?>>
+                            <?php esc_html_e('Enable Cookie Keeper (Way 3 — restore Safari-deleted cookies)', 'pixelfly'); ?>
+                        </label>
+                        <p class="description">
+                            <?php esc_html_e('Default is off. Also enable Cookie Keeper on your PixelFly container. Sets a master cookie (_pf_mid) from this shop and restores _fbp/_fbc/_ga when Safari removes them. Prefer Same-Origin or Own CDN when possible.', 'pixelfly'); ?>
+                            <a href="https://pixelfly.io/cookie-life-extension" target="_blank" rel="noopener noreferrer"><?php esc_html_e('Setup guide', 'pixelfly'); ?></a>
+                        </p>
+                    </td>
+                </tr>
                 <tr>
                     <th scope="row"><?php esc_html_e('Debug Mode', 'pixelfly'); ?></th>
                     <td>

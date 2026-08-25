@@ -4,7 +4,7 @@
  * Plugin Name: PixelFly – Server Side Tracking | GTM DataLayer | Delayed Purchase | Consent V2 | Custom Loader
  * Plugin URI: https://pixelfly.io
  * Description: Server-side conversion tracking via sGTM or proxy, GTM DataLayer events, delayed purchase events for COD orders, Consent Mode V2, and custom script loader to bypass ad blockers.
- * Version: 1.2.1
+ * Version: 1.3.0
  * Author: PixelFly
  * Author URI: https://pixelfly.io
  * Text Domain: pixelfly
@@ -22,7 +22,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Plugin constants
-define('PIXELFLY_VERSION', '1.2.1');
+define('PIXELFLY_VERSION', '1.3.0');
 define('PIXELFLY_PLUGIN_FILE', __FILE__);
 define('PIXELFLY_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('PIXELFLY_PLUGIN_URL', plugin_dir_url(__FILE__));
@@ -152,6 +152,9 @@ final class PixelFly_WooCommerce
         }
 
         new PixelFly_COD_Protection();
+
+        // Cookie Keeper: opt-in only (plugin option default false)
+        PixelFly_Cookie_Keeper::get_instance();
     }
 
     /**
@@ -170,6 +173,7 @@ final class PixelFly_WooCommerce
         require_once PIXELFLY_PLUGIN_DIR . 'includes/class-pixelfly-delayed.php';
         require_once PIXELFLY_PLUGIN_DIR . 'includes/class-pixelfly-consent.php';
         require_once PIXELFLY_PLUGIN_DIR . 'includes/class-pixelfly-custom-loader.php';
+        require_once PIXELFLY_PLUGIN_DIR . 'includes/class-pixelfly-cookie-keeper.php';
     }
 
     /**
@@ -236,6 +240,7 @@ final class PixelFly_WooCommerce
         add_option('pixelfly_cod_webhook_statuses', ['processing', 'completed']);
         add_option('pixelfly_debug_mode', false);
         add_option('pixelfly_event_logging', false);
+        add_option('pixelfly_cookie_keeper_enabled', false);
 
         // Flush rewrite rules
         flush_rewrite_rules();

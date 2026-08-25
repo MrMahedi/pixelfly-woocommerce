@@ -89,6 +89,61 @@ class PixelFly_API
     }
 
     /**
+     * Cookie Keeper store/restore against Worker /ck.
+     * Returns decoded JSON array or false. Never throws.
+     *
+     * @param string $action store|restore
+     * @param string $mid Master ID
+     * @param array $cookies Cookie map (store only)
+     * @return array|false
+     */
+    public function cookie_keeper_request($action, $mid, $cookies = [])
+    {
+        if (empty($this->api_key) || empty($mid)) {
+            return false;
+        }
+
+        $ck_url = preg_replace('#/e/?(\?.*)?$#', '/ck$1', $this->endpoint);
+        if (!is_string($ck_url) || $ck_url === $this->endpoint) {
+            $ck_url = rtrim($this->endpoint, '/') . '/ck';
+        }
+
+        $body = [
+            'action' => $action === 'restore' ? 'restore' : 'store',
+            'mid' => $mid,
+        ];
+
+        if ($action === 'store' && !empty($cookies)) {
+            $body['cookies'] = $cookies;
+        }
+
+        $response = wp_remote_post($ck_url, [
+            'timeout' => 2.5,
+            'headers' => [
+                'Content-Type' => 'application/json',
+                'X-PF-Key' => $this->api_key,
+            ],
+            'body' => wp_json_encode($body),
+        ]);
+
+        if (is_wp_error($response)) {
+            $this->debug_log('Cookie Keeper request failed', [
+                'error' => $response->get_error_message(),
+            ]);
+            return false;
+        }
+
+        $code = wp_remote_retrieve_response_code($response);
+        $decoded = json_decode(wp_remote_retrieve_body($response), true);
+
+        if ($code < 200 || $code >= 300 || !is_array($decoded)) {
+            return false;
+        }
+
+        return $decoded;
+    }
+
+    /**
      * Test API connection
      *
      * @return array Result with success status and message

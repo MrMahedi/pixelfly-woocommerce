@@ -146,6 +146,13 @@ class PixelFly_Admin
         register_setting('pixelfly_settings', 'pixelfly_debug_mode');
         register_setting('pixelfly_settings', 'pixelfly_event_logging');
         register_setting('pixelfly_settings', 'pixelfly_excluded_roles');
+        register_setting('pixelfly_settings', 'pixelfly_cookie_keeper_enabled', [
+            'type' => 'boolean',
+            'default' => false,
+            'sanitize_callback' => static function ($value) {
+                return $value === true || $value === 1 || $value === '1';
+            },
+        ]);
     }
 
     /**
