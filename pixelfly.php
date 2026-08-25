@@ -4,7 +4,7 @@
  * Plugin Name: PixelFly – Server Side Tracking | GTM DataLayer | Delayed Purchase | Consent V2 | Custom Loader
  * Plugin URI: https://pixelfly.io
  * Description: Server-side conversion tracking via sGTM or proxy, GTM DataLayer events, delayed purchase events for COD orders, Consent Mode V2, and custom script loader to bypass ad blockers.
- * Version: 1.3.0
+ * Version: 1.3.1
  * Author: PixelFly
  * Author URI: https://pixelfly.io
  * Text Domain: pixelfly
@@ -22,7 +22,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Plugin constants
-define('PIXELFLY_VERSION', '1.3.0');
+define('PIXELFLY_VERSION', '1.3.1');
 define('PIXELFLY_PLUGIN_FILE', __FILE__);
 define('PIXELFLY_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('PIXELFLY_PLUGIN_URL', plugin_dir_url(__FILE__));

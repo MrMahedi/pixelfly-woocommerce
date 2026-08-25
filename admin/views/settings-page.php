@@ -18,6 +18,7 @@ $delayed_firing_method = get_option('pixelfly_delayed_firing_method', 'sgtm');
 $delayed_methods = get_option('pixelfly_delayed_payment_methods', ['cod']);
 $delayed_statuses = get_option('pixelfly_delayed_fire_on_status', ['processing', 'completed']);
 $cod_mode = get_option('pixelfly_cod_mode', 'legacy');
+$cod_enabled = PixelFly_COD_Protection::is_enabled();
 $cod_hold_url = get_option('pixelfly_cod_hold_url', '');
 $cod_server_hold_backup = get_option('pixelfly_cod_server_hold_backup', false);
 $cod_webhook_enabled = get_option('pixelfly_cod_webhook_enabled', false);
@@ -340,8 +341,25 @@ $all_roles = wp_roles()->get_names();
         <div class="pixelfly-tab-content" id="delayed" data-tab="delayed">
         <div class="pixelfly-card">
             <h2><?php esc_html_e('COD Order Protection', 'pixelfly'); ?></h2>
-            <p class="description"><?php esc_html_e('Control how Cash on Delivery (COD) purchase events are held and fired. Use GTM + PixelFly dashboard for the recommended setup.', 'pixelfly'); ?></p>
+            <p class="description"><?php esc_html_e('Hold COD purchases until verified, then fire ads conversions. Turn off to send purchase events immediately for all payment methods.', 'pixelfly'); ?></p>
 
+            <table class="form-table">
+                <tr>
+                    <th scope="row"><?php esc_html_e('COD Order Protection', 'pixelfly'); ?></th>
+                    <td>
+                        <input type="hidden" name="pixelfly_cod_enabled" value="0">
+                        <label>
+                            <input type="checkbox" name="pixelfly_cod_enabled" value="1" <?php checked($cod_enabled); ?> id="pixelfly_cod_enabled">
+                            <strong><?php esc_html_e('Enable COD Order Protection', 'pixelfly'); ?></strong>
+                        </label>
+                        <p class="description" style="margin-top: 6px;">
+                            <?php esc_html_e('Off = no hold / no delayed purchase. On = choose how COD is held below (also enable COD Power-up in PixelFly dashboard).', 'pixelfly'); ?>
+                        </p>
+                    </td>
+                </tr>
+            </table>
+
+            <div class="cod-enabled-only">
             <table class="form-table">
                 <tr>
                     <th scope="row"><?php esc_html_e('COD Handling Mode', 'pixelfly'); ?></th>
@@ -566,6 +584,7 @@ $all_roles = wp_roles()->get_names();
                     </td>
                 </tr>
             </table>
+            </div><!-- .cod-enabled-only -->
         </div>
 
         </div>
@@ -809,8 +828,23 @@ $all_roles = wp_roles()->get_names();
             switchTab(hash);
         }
 
-        // COD mode toggles legacy vs PixelFly COD Protection settings
+        // COD master On/Off + mode toggles
+        function toggleCodEnabledSettings() {
+            var masterOn = $('#pixelfly_cod_enabled').is(':checked');
+            $('.cod-enabled-only').toggle(masterOn);
+            if (masterOn) {
+                toggleCodModeSettings();
+            } else {
+                $('.legacy-delayed-setting, .legacy-delayed-heading, .legacy-delayed-divider').hide();
+                $('.cod-protection-setting, .cod-gtm-only, .cod-webhook-setting, .delayed-setting').hide();
+            }
+        }
+
         function toggleCodModeSettings() {
+            if (!$('#pixelfly_cod_enabled').is(':checked')) {
+                return;
+            }
+
             var mode = $('input[name="pixelfly_cod_mode"]:checked').val();
             var isLegacy = mode === 'legacy';
             var isGtm = mode === 'gtm';
@@ -826,13 +860,15 @@ $all_roles = wp_roles()->get_names();
             toggleCodWebhookSettings();
         }
 
+        $('#pixelfly_cod_enabled').on('change', toggleCodEnabledSettings);
         $('input[name="pixelfly_cod_mode"]').on('change', toggleCodModeSettings);
-        toggleCodModeSettings();
+        toggleCodEnabledSettings();
 
         function toggleCodWebhookSettings() {
+            var masterOn = $('#pixelfly_cod_enabled').is(':checked');
             var enabled = $('#pixelfly_cod_webhook_enabled').is(':checked');
             var isProtection = ['gtm', 'plugin_hold'].indexOf($('input[name="pixelfly_cod_mode"]:checked').val()) >= 0;
-            $('.cod-webhook-setting').toggle(enabled && isProtection);
+            $('.cod-webhook-setting').toggle(masterOn && enabled && isProtection);
         }
 
         $('#pixelfly_cod_webhook_enabled').on('change', toggleCodWebhookSettings);
@@ -840,9 +876,10 @@ $all_roles = wp_roles()->get_names();
 
         // Toggle delayed settings visibility (legacy mode)
         function toggleDelayedSettings() {
+            var masterOn = $('#pixelfly_cod_enabled').is(':checked');
             var enabled = $('#pixelfly_delayed_enabled').is(':checked');
             var isLegacy = $('input[name="pixelfly_cod_mode"]:checked').val() === 'legacy';
-            $('.delayed-setting').toggle(isLegacy && enabled);
+            $('.delayed-setting').toggle(masterOn && isLegacy && enabled);
         }
 
         $('#pixelfly_delayed_enabled').on('change', toggleDelayedSettings);

@@ -126,6 +126,13 @@ class PixelFly_Admin
         register_setting('pixelfly_settings', 'pixelfly_delayed_fire_on_status');
 
         // COD Order Protection (PixelFly dashboard held_events)
+        register_setting('pixelfly_settings', 'pixelfly_cod_enabled', [
+            'type' => 'boolean',
+            'default' => false,
+            'sanitize_callback' => static function ($value) {
+                return !empty($value) ? 1 : 0;
+            },
+        ]);
         register_setting('pixelfly_settings', 'pixelfly_cod_mode');
         register_setting('pixelfly_settings', 'pixelfly_cod_hold_url', [
             'sanitize_callback' => 'esc_url_raw',

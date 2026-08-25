@@ -4,7 +4,7 @@ Tags: server side tracking, sgtm, gtm datalayer, conversion tracking, consent mo
 Requires at least: 6.0
 Tested up to: 6.4
 Requires PHP: 7.4
-Stable tag: 1.2.1
+Stable tag: 1.3.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -109,6 +109,9 @@ Yes. Consent Mode V2 operates at the browser level — consent signals are carri
 
 == Changelog ==
 
+= 1.3.1 =
+* COD Order Protection: master On/Off switch; handling modes (GTM / plugin hold / legacy) only show when enabled
+
 = 1.2.1 =
 * dataLayer purchase includes gclid and fbclid (order meta + cookie fallback) for sGTM COD hold
 
@@ -134,6 +137,9 @@ Yes. Consent Mode V2 operates at the browser level — consent signals are carri
 * Admin pending events management
 
 == Upgrade Notice ==
+
+= 1.3.1 =
+COD tab now has Enable On/Off. Turn off to fire purchases immediately; turn on to choose GTM / plugin hold / legacy.
 
 = 1.2.0 =
 COD Order Protection: switch to GTM/sGTM mode for new PixelFly held-events flow. See https://pixelfly.io/guides/cod-offline-conversions-server-gtm

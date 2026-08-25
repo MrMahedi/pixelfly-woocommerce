@@ -3,7 +3,8 @@
 /**
  * PixelFly COD Order Protection (Laravel held_events + /cod/hold).
  *
- * Modes:
+ * Master switch: pixelfly_cod_enabled (on/off).
+ * Modes (only when enabled):
  * - legacy: old plugin DB delayed events (PixelFly_Delayed)
  * - gtm: dataLayer purchase + payment_method for GTM/sGTM hold (recommended)
  * - plugin_hold: PHP POST /cod/hold from WooCommerce (no GTM required)
@@ -25,6 +26,26 @@ class PixelFly_COD_Protection
         add_action('woocommerce_order_status_changed', [$this, 'maybe_webhook_confirm'], 20, 4);
     }
 
+    /**
+     * Master On/Off for COD Order Protection / delayed purchase.
+     * When off: purchases fire immediately (no hold, no webhook, no legacy delay).
+     */
+    public static function is_enabled(): bool
+    {
+        $stored = get_option('pixelfly_cod_enabled', null);
+        if ($stored === null) {
+            // Back-compat before the On/Off control existed.
+            $mode = get_option('pixelfly_cod_mode', self::MODE_LEGACY);
+            if (in_array($mode, [self::MODE_GTM, self::MODE_PLUGIN_HOLD], true)) {
+                return true;
+            }
+
+            return (bool) get_option('pixelfly_delayed_enabled', true);
+        }
+
+        return (bool) $stored;
+    }
+
     public static function get_mode(): string
     {
         $mode = get_option('pixelfly_cod_mode', self::MODE_LEGACY);
@@ -34,11 +55,19 @@ class PixelFly_COD_Protection
 
     public static function uses_cod_protection(): bool
     {
+        if (!self::is_enabled()) {
+            return false;
+        }
+
         return in_array(self::get_mode(), [self::MODE_GTM, self::MODE_PLUGIN_HOLD], true);
     }
 
     public static function is_legacy_delayed(): bool
     {
+        if (!self::is_enabled()) {
+            return false;
+        }
+
         return self::get_mode() === self::MODE_LEGACY && get_option('pixelfly_delayed_enabled', true);
     }
 
@@ -163,6 +192,10 @@ class PixelFly_COD_Protection
      */
     public function maybe_hold_order($order_id, $posted_data, $order): void
     {
+        if (!self::is_enabled()) {
+            return;
+        }
+
         if (!$order instanceof WC_Order) {
             $order = wc_get_order($order_id);
         }
