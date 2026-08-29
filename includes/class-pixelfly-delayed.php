@@ -192,7 +192,12 @@ class PixelFly_Delayed
             'st' => $order->get_billing_state(),
             'zp' => $order->get_billing_postcode(),
             'country' => strtoupper($order->get_billing_country()),
-            'external_id' => preg_replace('/[^0-9]/', '', $order->get_billing_phone()),
+            // Same identity as every other event for this shopper - see
+            // PixelFly_User_Data::get_external_id().
+            'external_id' => PixelFly_User_Data::get_external_id(
+                $order->get_billing_phone(),
+                $order->get_billing_country()
+            ),
             'fbp' => isset($_COOKIE['_fbp']) ? sanitize_text_field($_COOKIE['_fbp']) : null,
             'fbc' => isset($_COOKIE['_fbc']) ? sanitize_text_field($_COOKIE['_fbc']) : null,
         ];

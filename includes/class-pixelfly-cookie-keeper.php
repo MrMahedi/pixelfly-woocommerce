@@ -233,9 +233,13 @@ class PixelFly_Cookie_Keeper
   if (!cfg || !cfg.url || !cfg.key) return;
 
   function readCookie(name) {
-    var parts = ('; ' + document.cookie).split('; ' + name + '=');
-    if (parts.length < 2) return '';
-    return parts.pop().split(';').shift();
+    // First match, same rule as public/js/pixelfly-tracker.js. A site can carry two
+    // _fbc or _ga cookies (host-only plus one scoped to .domain by the Pixel); the
+    // previous pop() took the LAST, so the value stored here could differ from the
+    // value the tracker sent to PixelFly for the same visitor.
+    var escaped = String(name).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    var match = document.cookie.match(new RegExp('(?:^|;\\s*)' + escaped + '=([^;]*)'));
+    return match ? match[1] : '';
   }
 
   function collect() {

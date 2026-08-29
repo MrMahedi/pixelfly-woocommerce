@@ -518,15 +518,15 @@ class PixelFly_API
         }
         if (!empty($user_data['ph'])) {
             $params['up.phone'] = $user_data['ph'];
-            // Hash phone: remove non-digits, ensure country code, then SHA256
-            $phone = preg_replace('/[^0-9]/', '', $user_data['ph']);
-            // Add Bangladesh country code if not present and looks like local number
-            if (strlen($phone) === 11 && strpos($phone, '0') === 0) {
-                $phone = '880' . substr($phone, 1);
-            } elseif (strlen($phone) === 10) {
-                $phone = '880' . $phone;
+            // Digits-only E.164, then SHA256. Shared with the Worker's normalizePhone
+            // so the same customer hashes identically on both paths.
+            $phone = PixelFly_User_Data::normalize_phone(
+                $user_data['ph'],
+                $user_data['country'] ?? ''
+            );
+            if ($phone !== '') {
+                $params['ep.x-fb-ud-ph'] = hash('sha256', $phone);
             }
-            $params['ep.x-fb-ud-ph'] = hash('sha256', $phone);
         }
         if (!empty($user_data['fn'])) {
             $params['up.first_name'] = $user_data['fn'];
@@ -856,154 +856,6 @@ class PixelFly_API
             'success' => false,
             'message' => sprintf(__('Connection failed: HTTP %d', 'pixelfly'), $response_code),
         ];
-    }
-
-    /**
-     * Transform stored event data into GA4 Measurement Protocol format
-     *
-     * @param array $event_data Stored event data (PixelFly format)
-     * @return array GA4 MP payload
-     */
-    private function transform_to_ga4_payload($event_data)
-    {
-        $user_data = $event_data['user_data'] ?? [];
-
-        // Derive client_id from fbp cookie or generate one
-        $client_id = null;
-        if (!empty($user_data['fbp'])) {
-            $parts = explode('.', $user_data['fbp']);
-            if (count($parts) >= 4) {
-                $client_id = $parts[2] . '.' . $parts[3];
-            }
-        }
-        if (!$client_id) {
-            $client_id = ($event_data['event_time'] ?? time()) . '.' . crc32($user_data['ph'] ?? $event_data['transaction_id'] ?? uniqid());
-        }
-
-        // Build event params
-        $event_params = [
-            'transaction_id' => $event_data['transaction_id'] ?? '',
-            'value' => (float) ($event_data['value'] ?? 0),
-            'currency' => $event_data['currency'] ?? get_woocommerce_currency(),
-            'engagement_time_msec' => 1,
-        ];
-
-        // Add shipping/tax/coupon if present
-        if (!empty($event_data['shipping'])) {
-            $event_params['shipping'] = (float) $event_data['shipping'];
-        }
-        if (!empty($event_data['tax'])) {
-            $event_params['tax'] = (float) $event_data['tax'];
-        }
-        if (!empty($event_data['coupon'])) {
-            $event_params['coupon'] = $event_data['coupon'];
-        }
-
-        // Transform items
-        if (!empty($event_data['items'])) {
-            $event_params['items'] = array_map(function ($item) {
-                return [
-                    'item_id' => $item['item_id'] ?? '',
-                    'item_name' => $item['item_name'] ?? '',
-                    'item_category' => $item['item_category'] ?? '',
-                    'item_variant' => $item['item_variant'] ?? '',
-                    'price' => (float) ($item['price'] ?? 0),
-                    'quantity' => (int) ($item['quantity'] ?? 1),
-                ];
-            }, $event_data['items']);
-        }
-
-        // Add UTM/click ID params if available
-        $context = $event_data['context'] ?? [];
-        $utm = $context['utm'] ?? [];
-        if (!empty($utm)) {
-            foreach (['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'] as $key) {
-                if (!empty($utm[$key])) {
-                    $event_params[$key] = $utm[$key];
-                }
-            }
-            if (!empty($utm['gclid'])) {
-                $event_params['gclid'] = $utm['gclid'];
-            }
-        }
-
-        // Enhanced Conversions user_data — SHA-256 hashed PII
-        $enhanced_user_data = [];
-        if (!empty($user_data['em'])) {
-            $enhanced_user_data['sha256_email_address'] = hash('sha256', strtolower(trim($user_data['em'])));
-        }
-        if (!empty($user_data['ph'])) {
-            $phone = $user_data['ph'];
-            if (substr($phone, 0, 1) !== '+') {
-                // Add country code based on store country
-                $country_code = substr(get_option('woocommerce_default_country', 'BD:'), 0, 2);
-                $country_dial = ['BD' => '+880', 'IN' => '+91', 'US' => '+1', 'UK' => '+44'];
-                $phone = ($country_dial[$country_code] ?? '+880') . $phone;
-            }
-            $enhanced_user_data['sha256_phone_number'] = hash('sha256', $phone);
-        }
-        if (!empty($user_data['fn']) || !empty($user_data['ln'])) {
-            $address = [];
-            if (!empty($user_data['fn'])) {
-                $address['sha256_first_name'] = hash('sha256', strtolower(trim($user_data['fn'])));
-            }
-            if (!empty($user_data['ln'])) {
-                $address['sha256_last_name'] = hash('sha256', strtolower(trim($user_data['ln'])));
-            }
-            if (!empty($user_data['ct'])) {
-                $address['city'] = $user_data['ct'];
-            }
-            if (!empty($user_data['st'])) {
-                $address['region'] = $user_data['st'];
-            }
-            if (!empty($user_data['zp'])) {
-                $address['postal_code'] = $user_data['zp'];
-            }
-            if (!empty($user_data['country'])) {
-                $address['country'] = $user_data['country'];
-            }
-            $enhanced_user_data['address'] = $address;
-        }
-
-        if (!empty($enhanced_user_data)) {
-            $event_params['user_data'] = $enhanced_user_data;
-        }
-
-        // Build user properties (plain text for GA4 reporting and Facebook CAPI in sGTM)
-        $user_properties = [];
-        $property_map = [
-            'ph' => 'phone',
-            'em' => 'email',
-            'fn' => 'first_name',
-            'ln' => 'last_name',
-            'ct' => 'city',
-            'st' => 'region',
-            'country' => 'country',
-        ];
-        foreach ($property_map as $data_key => $prop_name) {
-            if (!empty($user_data[$data_key])) {
-                $user_properties[$prop_name] = ['value' => $user_data[$data_key]];
-            }
-        }
-
-        $payload = [
-            'client_id' => $client_id,
-            'events' => [[
-                'name' => 'purchase',
-                'params' => $event_params,
-            ]],
-        ];
-
-        // Add user_id (phone number as identifier)
-        if (!empty($user_data['ph'])) {
-            $payload['user_id'] = $user_data['ph'];
-        }
-
-        if (!empty($user_properties)) {
-            $payload['user_properties'] = $user_properties;
-        }
-
-        return $payload;
     }
 
     /**

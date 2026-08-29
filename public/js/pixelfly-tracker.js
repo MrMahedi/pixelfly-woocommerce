@@ -35,15 +35,25 @@
     }
 
     /**
-     * Get cookie value by name
+     * Get cookie value by name.
+     *
+     * Reads the first match rather than requiring the name to appear exactly
+     * once. A site commonly carries two _fbc cookies (one host-only, one scoped
+     * to .domain by the Meta Pixel) or two _ga cookies (www + apex); the old
+     * exact-split check returned '' in that case, so _fbc and the GA client ID
+     * were lost on precisely the sites that had them.
      */
     function getCookie(name) {
-        var value = '; ' + document.cookie;
-        var parts = value.split('; ' + name + '=');
-        if (parts.length === 2) {
-            return decodeURIComponent(parts.pop().split(';').shift());
+        var escaped = String(name).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        var match = document.cookie.match(new RegExp('(?:^|;\\s*)' + escaped + '=([^;]*)'));
+        if (!match) {
+            return '';
         }
-        return '';
+        try {
+            return decodeURIComponent(match[1]);
+        } catch (e) {
+            return match[1];
+        }
     }
 
     /**

@@ -91,8 +91,16 @@ class PixelFly_User_Data
                 $user_data['ph'] = preg_replace('/[^0-9]/', '', $customer->get_billing_phone());
                 $user_data['ct'] = strtolower($customer->get_billing_city());
                 $user_data['st'] = $customer->get_billing_state();
+                $user_data['zp'] = $customer->get_billing_postcode();
                 $user_data['country'] = strtoupper($customer->get_billing_country());
-                $user_data['external_id'] = (string) $user->ID;
+                // external_id must be the SAME value on every event for a shopper,
+                // otherwise Meta treats browsing and buying as two different people.
+                // The normalized phone is the only identifier guests have too, so it
+                // is the one identity used everywhere. See get_external_id().
+                $user_data['external_id'] = self::get_external_id(
+                    $customer->get_billing_phone(),
+                    $customer->get_billing_country()
+                );
             }
         }
 
@@ -119,7 +127,10 @@ class PixelFly_User_Data
             'st' => $order->get_billing_state(),
             'zp' => $order->get_billing_postcode(),
             'country' => strtoupper($order->get_billing_country()),
-            'external_id' => preg_replace('/[^0-9]/', '', $order->get_billing_phone()),
+            'external_id' => self::get_external_id(
+                $order->get_billing_phone(),
+                $order->get_billing_country()
+            ),
         ];
 
         // Add Facebook cookies if available
@@ -130,6 +141,136 @@ class PixelFly_User_Data
         return array_filter($user_data, function ($value) {
             return !empty($value);
         });
+    }
+
+    /**
+     * ISO 3166-1 alpha-2 -> E.164 country calling code.
+     * Mirrors DIAL_CODES in the Worker (pixelflycloudflare/src/utils/hash.ts) so a
+     * number hashed here and a number hashed at the edge produce the same digest.
+     */
+    const DIAL_CODES = [
+        'bd' => '880', 'in' => '91', 'pk' => '92', 'lk' => '94', 'np' => '977', 'mv' => '960',
+        'gb' => '44', 'ie' => '353', 'us' => '1', 'ca' => '1', 'au' => '61', 'nz' => '64',
+        'ae' => '971', 'sa' => '966', 'qa' => '974', 'kw' => '965', 'om' => '968', 'bh' => '973',
+        'my' => '60', 'sg' => '65', 'id' => '62', 'th' => '66', 'ph' => '63', 'vn' => '84',
+        'nl' => '31', 'de' => '49', 'fr' => '33', 'it' => '39', 'es' => '34', 'se' => '46', 'no' => '47',
+    ];
+
+    /**
+     * Only a real 2-letter ISO code is a usable hint. "UK" is accepted as an alias
+     * for GB because WooCommerce stores sometimes carry it.
+     *
+     * @param string $country
+     * @return string lowercase ISO code, or '' when there is no usable hint
+     */
+    public static function iso_hint($country)
+    {
+        $iso = strtolower(trim((string) $country));
+        if ($iso === 'uk') {
+            $iso = 'gb';
+        }
+
+        return preg_match('/^[a-z]{2}$/', $iso) ? $iso : '';
+    }
+
+    /**
+     * Normalize a phone to digits-only E.164 (no leading +).
+     *
+     * A single leading "0" is a national trunk prefix: it must be REPLACED by the
+     * country calling code, never prefixed with it. '880' . '01712345678' yields
+     * 88001712345678, a number that does not exist and matches nobody.
+     *
+     * @param string $phone
+     * @param string $country optional ISO 3166-1 alpha-2 hint
+     * @return string
+     */
+    public static function normalize_phone($phone, $country = '')
+    {
+        $digits = preg_replace('/[^0-9]/', '', (string) $phone);
+        if ($digits === '') {
+            return '';
+        }
+
+        // "00" is the international call prefix; what follows already carries a code.
+        if (strpos($digits, '00') === 0) {
+            $digits = substr($digits, 2);
+        }
+
+        $iso = self::iso_hint($country);
+        $dial = $iso !== '' ? (self::DIAL_CODES[$iso] ?? '') : '';
+
+        if (strpos($digits, '0') === 0) {
+            if ($iso !== '') {
+                // The merchant told us a country. Use it, or leave the number alone
+                // if we do not know its dialling code — never fall back to BD here.
+                return $dial !== '' ? $dial . substr($digits, 1) : $digits;
+            }
+            // No country at all. Assume Bangladesh for the 01XXXXXXXXX mobile shape
+            // only, and leave every other shape untouched.
+            if (strlen($digits) === 11 && strpos($digits, '01') === 0) {
+                return '880' . substr($digits, 1);
+            }
+
+            return $digits;
+        }
+
+        // Bare 10-digit national number with no trunk zero. Requires an explicit BD
+        // country — assuming it would mangle a 10-digit US number. Orders always
+        // carry a billing country, so real BD orders still normalize.
+        if (strlen($digits) === 10 && $iso === 'bd') {
+            return '880' . $digits;
+        }
+
+        return $digits;
+    }
+
+    /**
+     * Full E.164 with a leading + (what Google Enhanced Conversions expects).
+     * Adds the country calling code to a bare national number, and never adds it
+     * twice to a number that already carries it.
+     *
+     * @param string $phone
+     * @param string $country optional ISO 3166-1 alpha-2 hint
+     * @return string
+     */
+    public static function to_e164($phone, $country = '')
+    {
+        $digits = self::normalize_phone($phone, $country);
+        if ($digits === '') {
+            return '';
+        }
+
+        $iso = self::iso_hint($country);
+        $dial = $iso !== '' ? (self::DIAL_CODES[$iso] ?? '') : '';
+
+        if ($dial !== '' && strpos($digits, $dial) !== 0) {
+            $digits = $dial . $digits;
+        }
+
+        return '+' . $digits;
+    }
+
+    /**
+     * The single identifier used as external_id everywhere.
+     *
+     * Meta uses external_id to stitch a shopper's events together, so it has to be
+     * byte-identical on every event for that person. Previously browsing sent the
+     * WordPress account number while the order sent raw phone digits, so one shopper
+     * looked like two people and the browse-to-buy funnel never joined.
+     *
+     * The normalized phone is used because guests have one too — a WordPress account
+     * number only exists for logged-in customers, which is a minority of COD traffic.
+     *
+     * @param string $phone
+     * @param string $country ISO 3166-1 alpha-2 hint
+     * @return string E.164 digits, or '' when there is no usable phone
+     */
+    public static function get_external_id($phone, $country = '')
+    {
+        $normalized = self::normalize_phone($phone, $country);
+
+        // Too short to be a real number - better no identifier than a wrong one.
+        return strlen($normalized) >= 8 ? $normalized : '';
     }
 
     /**

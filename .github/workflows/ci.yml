@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  lint:
+    name: PHP syntax
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # 7.4 is the plugin's declared floor (see pixelfly.php), 8.3 is what most
+        # current WordPress hosts run.
+        php: ['7.4', '8.3']
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+
+      - name: Lint every PHP file
+        run: find . -path ./vendor -prune -o -name '*.php' -print0 | xargs -0 -n1 -P4 php -l
+
+  js:
+    name: JavaScript syntax
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check bundled JS parses
+        run: find public admin -name '*.js' -print0 | xargs -0 -n1 node --check
