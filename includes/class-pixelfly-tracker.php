@@ -40,7 +40,12 @@ class PixelFly_Tracker
 
         // Server-side tracking for immediate events
         // Priority 5 = runs BEFORE dataLayer (priority 10) so _pixelfly_server_tracked is set
+        // when the send completes in time (see send_server_purchase_async()).
         add_action('woocommerce_thankyou', [$this, 'server_side_purchase'], 5, 1);
+
+        // Runs the actual API call out-of-band via WP-Cron, so the order-received
+        // page never blocks on it.
+        add_action('pixelfly_send_server_purchase', [$this, 'send_server_purchase_async'], 10, 1);
     }
 
     /**
@@ -140,6 +145,15 @@ class PixelFly_Tracker
 
     /**
      * Server-side purchase tracking
+     *
+     * Sends inline but bounded to a short timeout, so the order-received page
+     * is never held up anywhere close to PixelFly_API's default 10s. If that
+     * attempt fails or times out, falls back to a single background retry via
+     * WP-Cron instead of losing the event outright. Because the event_id is
+     * deterministic (PixelFly_Events::get_purchase_event_id()), it's safe if
+     * the dataLayer/browser purchase also fires — Meta dedupes on event_id
+     * instead of double-counting — and safe if both the inline attempt and
+     * the retry end up sending, for the same reason.
      */
     public function server_side_purchase($order_id)
     {
@@ -161,21 +175,54 @@ class PixelFly_Tracker
             return;
         }
 
-        // Send server-side event
+        if ($this->send_server_purchase($order, 3)) {
+            return;
+        }
+
+        // Inline attempt failed or timed out — retry once in the background
+        // rather than losing the event. Avoid re-scheduling if the thank-you
+        // page is rendered more than once before the retry has run.
+        if (!wp_next_scheduled('pixelfly_send_server_purchase', [$order_id])) {
+            wp_schedule_single_event(time() + 30, 'pixelfly_send_server_purchase', [$order_id]);
+            if (function_exists('spawn_cron')) {
+                spawn_cron();
+            }
+        }
+    }
+
+    /**
+     * WP-Cron callback: single background retry of a failed/timed-out inline send.
+     */
+    public function send_server_purchase_async($order_id)
+    {
+        $order = wc_get_order($order_id);
+        if (!$order || $order->get_meta('_pixelfly_server_tracked')) {
+            return;
+        }
+
+        $this->send_server_purchase($order);
+    }
+
+    /**
+     * Shared send + success bookkeeping for both the inline attempt and the
+     * background retry.
+     *
+     * @param WC_Order $order
+     * @param int|float|null $timeout Override PixelFly_API's default timeout (seconds).
+     * @return bool
+     */
+    private function send_server_purchase($order, $timeout = null)
+    {
         $purchase_data = $this->build_server_purchase_data($order);
-        $result = $this->api->send_event($purchase_data);
+        $result = $this->api->send_event($purchase_data, $timeout);
 
         if ($result) {
             $order->update_meta_data('_pixelfly_server_tracked', true);
             $order->save();
-
-            // Set static flag to prevent dataLayer from also firing purchase event
-            // This bypasses WooCommerce object caching issues where get_meta() returns stale data
-            if (class_exists('PixelFly_DataLayer')) {
-                PixelFly_DataLayer::$fired_events['purchase_' . $order_id] = true;
-                PixelFly_DataLayer::$fired_events['purchase'] = true;
-            }
+            return true;
         }
+
+        return false;
     }
 
     /**
@@ -210,8 +257,12 @@ class PixelFly_Tracker
 
         return [
             'event' => 'purchase',
-            'event_id' => 'purchase_' . $order->get_id() . '_' . time(),
-            'value' => (float) $order->get_subtotal(),
+            // Deterministic — must match the dataLayer/browser purchase and the COD
+            // hold payload so Meta can deduplicate the same order across channels.
+            'event_id' => PixelFly_Events::get_purchase_event_id($order->get_id()),
+            // Order total, not subtotal — subtotal excludes tax/shipping and ignores
+            // discounts, so it never matches what the browser purchase reports.
+            'value' => PixelFly_Events::get_purchase_value($order),
             'currency' => $order->get_currency(),
             'transaction_id' => (string) $order->get_id(),
             'tax' => (float) $order->get_total_tax(),
@@ -219,6 +270,9 @@ class PixelFly_Tracker
             'coupon' => implode(', ', $order->get_coupon_codes()),
             'items' => $items,
             'content_ids' => $item_ids,
+            // Meta-shaped contents (id/quantity/item_price) so Meta CAPI can validate
+            // the purchase value against line items — content_ids alone carries no price.
+            'contents' => PixelFly_Events::build_meta_contents($items),
             'user_data' => PixelFly_User_Data::get_user_data_from_order($order),
             'context' => [
                 'ip' => $order->get_customer_ip_address(),

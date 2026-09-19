@@ -101,7 +101,7 @@ $all_roles = wp_roles()->get_names();
                     </th>
                     <td>
                         <input type="url" id="pixelfly_endpoint" name="pixelfly_endpoint" value="<?php echo esc_attr($endpoint); ?>" class="regular-text">
-                        <p class="description"><?php esc_html_e('Change this only if using a custom tracking domain.', 'pixelfly'); ?></p>
+                        <p class="description"><?php esc_html_e('Default PixelFly proxy. Change this only if you\'re using a First Party Domain URL or connecting directly to your sGTM server URL.', 'pixelfly'); ?></p>
                     </td>
                 </tr>
                 <tr>
@@ -381,7 +381,7 @@ $all_roles = wp_roles()->get_names();
                             </label>
                             <label style="display: block; margin-bottom: 12px;">
                                 <input type="radio" name="pixelfly_cod_mode" value="legacy" <?php checked($cod_mode, 'legacy'); ?>>
-                                <strong><?php esc_html_e('Legacy delayed events (deprecated)', 'pixelfly'); ?></strong>
+                                <strong><?php esc_html_e('Legacy delayed events', 'pixelfly'); ?></strong>
                                 <p class="description" style="margin: 4px 0 0 24px;">
                                     <?php esc_html_e('Old plugin DB hold + auto-fire on order status. Does not use PixelFly Held Events dashboard.', 'pixelfly'); ?>
                                 </p>

@@ -223,11 +223,15 @@ class PixelFly_Delayed
         // Build event data
         $event_data = [
             'event' => 'purchase',
-            'event_id' => 'purchase_' . $order->get_id() . '_' . $event_time,
+            // Deterministic — matches the immediate server-side send, the dataLayer
+            // purchase, and the COD hold payload for the same order.
+            'event_id' => PixelFly_Events::get_purchase_event_id($order->get_id()),
             'event_time' => $event_time,
             'action_source' => 'website',
             'event_source_url' => $order->get_checkout_order_received_url(),
-            'value' => (float) $order->get_subtotal(),
+            // Order total, not subtotal — subtotal excludes tax/shipping and ignores
+            // discounts, so it never matches what the other purchase paths report.
+            'value' => PixelFly_Events::get_purchase_value($order),
             'currency' => $order->get_currency(),
             'transaction_id' => (string) $order->get_id(),
             'tax' => (float) $order->get_total_tax(),
@@ -235,6 +239,7 @@ class PixelFly_Delayed
             'coupon' => implode(', ', $order->get_coupon_codes()),
             'items' => $items,
             'content_ids' => $item_ids,
+            'contents' => PixelFly_Events::build_meta_contents($items),
             'user_data' => $user_data,
             'context' => [
                 'ip' => $order->get_customer_ip_address(),

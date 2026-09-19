@@ -154,7 +154,7 @@ class PixelFly_COD_Protection
 
         $payload = [
             'order_id' => (string) $order->get_id(),
-            'event_id' => 'purchase_' . $order->get_id(),
+            'event_id' => PixelFly_Events::get_purchase_event_id($order->get_id()),
             'event_name' => 'Purchase',
             'event_time' => $event_time,
             'value' => (float) $order->get_total(),

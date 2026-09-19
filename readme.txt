@@ -4,7 +4,7 @@ Tags: server side tracking, sgtm, gtm datalayer, conversion tracking, consent mo
 Requires at least: 6.0
 Tested up to: 6.4
 Requires PHP: 7.4
-Stable tag: 1.3.1
+Stable tag: 1.3.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -108,6 +108,18 @@ Yes. Consent Mode V2 operates at the browser level — consent signals are carri
 5. Custom script loader setup
 
 == Changelog ==
+
+= 1.3.3 =
+* Fix: COD Order Protection no longer defaults to enabled on a fresh install — it's opt-in now (existing sites keep whatever they already have configured)
+* "Legacy delayed events" mode is no longer labeled deprecated — it's a supported option for merchants who prefer it
+* Clarified the Endpoint URL field: default PixelFly proxy, or point it at a First Party Domain URL / your own sGTM server URL
+
+= 1.3.2 =
+* Fix: server-side purchase now reports order total (was subtotal), matching the dataLayer purchase value on discounted, taxed, and shipped orders
+* Fix: purchase event_id is now deterministic (purchase_{order_id}) across the server-side send, dataLayer/browser push, legacy delayed send, and COD hold, so Meta and other destinations can deduplicate the same order instead of counting it twice
+* Fix: server-side purchase now sends Meta-shaped `contents` (id/quantity/item_price) alongside content_ids, so Meta CAPI can validate value against line items
+* Fix: order-received page no longer blocks for up to 10s on the server-side purchase call — it now runs via WP-Cron in the background
+* GTM template: event tag now uses the plugin's own dataLayer eventId when present, instead of always auto-generating a fresh one
 
 = 1.3.1 =
 * COD Order Protection: master On/Off switch; handling modes (GTM / plugin hold / legacy) only show when enabled

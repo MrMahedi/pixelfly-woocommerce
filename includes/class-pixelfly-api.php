@@ -42,9 +42,12 @@ class PixelFly_API
      * Send event to PixelFly
      *
      * @param array $event_data Event data to send
+     * @param int|float|null $timeout Override the default 10s timeout (seconds).
+     *   Used to bound calls made inline on a customer-facing request (e.g. the
+     *   WooCommerce order-received page) so they can't stall the page for long.
      * @return bool|array Success status or response data
      */
-    public function send_event($event_data)
+    public function send_event($event_data, $timeout = null)
     {
         if (empty($this->api_key)) {
             $this->log_error('API key not configured');
@@ -52,7 +55,7 @@ class PixelFly_API
         }
 
         $response = wp_remote_post($this->endpoint, [
-            'timeout' => 10,
+            'timeout' => $timeout !== null ? $timeout : 10,
             'headers' => [
                 'Content-Type' => 'application/json',
                 'X-PF-Key' => $this->api_key,

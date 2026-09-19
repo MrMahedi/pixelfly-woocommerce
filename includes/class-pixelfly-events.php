@@ -26,6 +26,58 @@ class PixelFly_Events
     }
 
     /**
+     * Deterministic purchase event ID, shared by every code path that reports
+     * an order's purchase (server-side send, dataLayer/browser push, COD hold).
+     * Must stay free of time()/random() — the same order has to produce the
+     * same ID everywhere so Meta and other destinations can deduplicate on it.
+     *
+     * @param int|string $order_id
+     * @return string Event ID
+     */
+    public static function get_purchase_event_id($order_id)
+    {
+        return 'purchase_' . $order_id;
+    }
+
+    /**
+     * Canonical purchase value: the amount actually charged to the customer.
+     * Order subtotal excludes tax/shipping and ignores discounts, so using it
+     * as "value" over- or under-states revenue depending on the order. Always
+     * report the order total so every destination sees the same number.
+     *
+     * @param WC_Order $order
+     * @return float
+     */
+    public static function get_purchase_value($order)
+    {
+        return (float) $order->get_total();
+    }
+
+    /**
+     * Map GA4-shaped line items to Meta's contents shape ({id, quantity, item_price}),
+     * so Meta CAPI can validate the purchase value against line items and use them
+     * for catalog/Advantage+ matching.
+     *
+     * @param array $items Items as built by build_product_data()/build_server_purchase_data()
+     * @return array
+     */
+    public static function build_meta_contents(array $items)
+    {
+        $contents = [];
+        foreach ($items as $item) {
+            if (empty($item['item_id'])) {
+                continue;
+            }
+            $contents[] = [
+                'id' => (string) $item['item_id'],
+                'quantity' => isset($item['quantity']) ? (int) $item['quantity'] : 1,
+                'item_price' => isset($item['price']) ? (float) $item['price'] : 0,
+            ];
+        }
+        return $contents;
+    }
+
+    /**
      * Build product data for tracking
      *
      * @param WC_Product $product
@@ -231,7 +283,9 @@ class PixelFly_Events
             $item_ids[] = $item_data['item_id'];
         }
 
-        $event_id = self::generate_event_id('purchase_' . $order->get_id());
+        // Deterministic — must match the server-side send and the COD hold payload
+        // so Meta (and any other event_id-aware destination) can deduplicate them.
+        $event_id = self::get_purchase_event_id($order->get_id());
 
         // Get shipping method
         $shipping_methods = $order->get_shipping_methods();
@@ -276,7 +330,7 @@ class PixelFly_Events
                 'currency' => $order->get_currency(),
                 'transaction_id' => (string) $order->get_id(),
                 'affiliation' => get_bloginfo('name'),
-                'value' => (float) $order->get_total(),
+                'value' => self::get_purchase_value($order),
                 'tax' => (float) $order->get_total_tax(),
                 'shipping' => (float) $order->get_shipping_total(),
                 'coupon' => implode(', ', $order->get_coupon_codes()),
