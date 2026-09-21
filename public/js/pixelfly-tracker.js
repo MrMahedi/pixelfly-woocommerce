@@ -206,7 +206,7 @@
         // Store UTM parameters in session storage on page load
         (function() {
             var urlParams = new URLSearchParams(window.location.search);
-            var utmFields = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'fbclid', 'gclid', 'ttclid'];
+            var utmFields = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'fbclid', 'gclid', 'ttclid', 'msclkid', 'wbraid', 'gbraid', 'dclid', 'li_fat_id', 'sccid'];
 
             utmFields.forEach(function(field) {
                 var value = urlParams.get(field);

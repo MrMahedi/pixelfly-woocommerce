@@ -4,7 +4,7 @@ Tags: server side tracking, sgtm, gtm datalayer, conversion tracking, consent mo
 Requires at least: 6.0
 Tested up to: 6.4
 Requires PHP: 7.4
-Stable tag: 1.3.3
+Stable tag: 1.3.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -108,6 +108,10 @@ Yes. Consent Mode V2 operates at the browser level — consent signals are carri
 5. Custom script loader setup
 
 == Changelog ==
+
+= 1.3.4 =
+* COD hold now sends full attribution: all UTMs, gclid/fbclid/ttclid/msclkid/wbraid/gbraid, page_referrer, and cookie/meta fbp/fbc fallbacks
+* UTM capture persists wbraid, gbraid, dclid, li_fat_id, and sccid alongside existing click IDs
 
 = 1.3.3 =
 * Fix: COD Order Protection no longer defaults to enabled on a fresh install — it's opt-in now (existing sites keep whatever they already have configured)

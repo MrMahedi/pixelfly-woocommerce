@@ -26,6 +26,11 @@ class PixelFly_UTM_Capture
         'gclid',
         'ttclid',
         'msclkid',
+        'wbraid',
+        'gbraid',
+        'dclid',
+        'li_fat_id',
+        'sccid',
     ];
 
     /**
@@ -182,7 +187,7 @@ class PixelFly_UTM_Capture
      */
     public static function get_click_ids_for_order($order): array
     {
-        $fields = ['gclid', 'fbclid', 'ttclid', 'msclkid'];
+        $fields = ['gclid', 'fbclid', 'ttclid', 'msclkid', 'wbraid', 'gbraid', 'dclid', 'li_fat_id', 'sccid'];
         $out = [];
 
         if ($order instanceof WC_Order) {

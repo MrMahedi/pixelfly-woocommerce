@@ -163,23 +163,32 @@ class PixelFly_COD_Protection
             'email' => strtolower($order->get_billing_email()),
             'phone' => preg_replace('/[^0-9]/', '', $order->get_billing_phone()),
             'name' => trim($order->get_billing_first_name() . ' ' . $order->get_billing_last_name()),
-            'fbp' => isset($_COOKIE['_fbp']) ? sanitize_text_field(wp_unslash($_COOKIE['_fbp'])) : null,
-            'fbc' => isset($_COOKIE['_fbc']) ? sanitize_text_field(wp_unslash($_COOKIE['_fbc'])) : null,
+            'fbp' => self::cookie_or_meta($order, '_fbp', '_fbp'),
+            'fbc' => self::cookie_or_meta($order, '_fbc', '_fbc'),
             'client_ip' => $order->get_customer_ip_address(),
             'user_agent' => $order->get_customer_user_agent(),
             'event_source_url' => $order->get_checkout_order_received_url(),
+            'page_referrer' => isset($_SERVER['HTTP_REFERER'])
+                ? esc_url_raw(wp_unslash($_SERVER['HTTP_REFERER']))
+                : null,
             'contents' => $items,
             'source' => 'woocommerce_plugin',
         ];
 
-        if (!empty($utm['gclid'])) {
-            $payload['gclid'] = $utm['gclid'];
+        // Merge every captured UTM / click ID onto the hold body.
+        foreach ($utm as $key => $value) {
+            if ($value !== null && $value !== '') {
+                $payload[$key] = $value;
+            }
         }
-        if (!empty($utm['fbclid'])) {
-            $payload['fbclid'] = $utm['fbclid'];
-        }
-        if (!empty($utm['ttclid'])) {
-            $payload['ttclid'] = $utm['ttclid'];
+
+        // Prefer live click-ID helpers (order meta + pixelfly_* cookies + _gcl_aw).
+        if (class_exists('PixelFly_UTM_Capture')) {
+            foreach (PixelFly_UTM_Capture::get_click_ids_for_order($order) as $key => $value) {
+                if (empty($payload[$key]) && $value !== null && $value !== '') {
+                    $payload[$key] = $value;
+                }
+            }
         }
 
         return array_filter($payload, static function ($v) {
@@ -323,7 +332,11 @@ class PixelFly_COD_Protection
 
     private static function get_utm_from_order(WC_Order $order): array
     {
-        $fields = ['utm_source', 'utm_medium', 'utm_campaign', 'fbclid', 'gclid', 'ttclid', 'msclkid'];
+        $fields = [
+            'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term',
+            'fbclid', 'gclid', 'ttclid', 'msclkid', 'wbraid', 'gbraid', 'dclid',
+            'li_fat_id', 'sccid',
+        ];
         $utm = [];
         foreach ($fields as $field) {
             $value = $order->get_meta('_' . $field);
@@ -332,6 +345,22 @@ class PixelFly_COD_Protection
             }
         }
         return $utm;
+    }
+
+    /**
+     * Prefer live browser cookie, then order meta saved at checkout.
+     */
+    private static function cookie_or_meta(WC_Order $order, string $cookie, string $meta_key): ?string
+    {
+        if (isset($_COOKIE[$cookie]) && $_COOKIE[$cookie] !== '') {
+            return sanitize_text_field(wp_unslash($_COOKIE[$cookie]));
+        }
+        $meta = $order->get_meta($meta_key);
+        if (is_string($meta) && $meta !== '') {
+            return $meta;
+        }
+
+        return null;
     }
 
     private static function debug_log(string $message): void

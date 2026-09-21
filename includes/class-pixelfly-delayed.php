@@ -283,7 +283,11 @@ class PixelFly_Delayed
      */
     private function get_utm_from_order_meta($order)
     {
-        $utm_fields = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'fbclid', 'gclid', 'ttclid', 'msclkid'];
+        $utm_fields = [
+            'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term',
+            'fbclid', 'gclid', 'ttclid', 'msclkid', 'wbraid', 'gbraid', 'dclid',
+            'li_fat_id', 'sccid',
+        ];
         $utm = [];
 
         foreach ($utm_fields as $field) {
