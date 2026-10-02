@@ -23,7 +23,7 @@ $cod_hold_url = get_option('pixelfly_cod_hold_url', '');
 $cod_server_hold_backup = get_option('pixelfly_cod_server_hold_backup', false);
 $cod_webhook_enabled = get_option('pixelfly_cod_webhook_enabled', false);
 $cod_webhook_secret = get_option('pixelfly_cod_webhook_secret', '');
-$cod_webhook_statuses = get_option('pixelfly_cod_webhook_statuses', ['processing', 'completed']);
+$cod_webhook_statuses = get_option('pixelfly_cod_webhook_statuses', ['completed']);
 $cod_hold_url_preview = PixelFly_COD_Protection::hold_url();
 $sgtm_endpoint = get_option('pixelfly_sgtm_endpoint', '');
 $sgtm_measurement_id = get_option('pixelfly_sgtm_measurement_id', '');
@@ -454,7 +454,7 @@ $all_roles = wp_roles()->get_names();
                                 </label>
                             <?php endif; ?>
                         <?php endforeach; ?>
-                        <p class="description"><?php esc_html_e('processing/completed confirm the hold; cancelled rejects it.', 'pixelfly'); ?></p>
+                        <p class="description"><?php esc_html_e('Completed (delivered) confirms the order and sends the purchase; Cancelled rejects it. Tick Processing only if your team moves orders to Processing after confirming them: the status WooCommerce sets while the order is placed never counts.', 'pixelfly'); ?></p>
                     </td>
                 </tr>
             </table>

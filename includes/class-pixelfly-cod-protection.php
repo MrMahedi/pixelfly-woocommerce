@@ -23,7 +23,16 @@ class PixelFly_COD_Protection
     public function __construct()
     {
         add_action('woocommerce_checkout_order_processed', [$this, 'maybe_hold_order'], 20, 3);
+        // The block checkout (the default for new stores) doesn't run the hook above.
+        add_action('woocommerce_store_api_checkout_order_processed', [$this, 'maybe_hold_block_order'], 20, 1);
         add_action('woocommerce_order_status_changed', [$this, 'maybe_webhook_confirm'], 20, 4);
+    }
+
+    public function maybe_hold_block_order($order): void
+    {
+        if ($order instanceof WC_Order) {
+            $this->maybe_hold_order($order->get_id(), [], $order);
+        }
     }
 
     /**
@@ -284,8 +293,15 @@ class PixelFly_COD_Protection
             return;
         }
 
-        $trigger = get_option('pixelfly_cod_webhook_statuses', ['processing', 'completed']);
+        $trigger = get_option('pixelfly_cod_webhook_statuses', ['completed']);
         if (!in_array($new_status, (array) $trigger, true)) {
+            return;
+        }
+
+        // WooCommerce sets a COD order to "processing" (or "on-hold") while the order is
+        // being placed. That's the checkout, not the store confirming the order: sending
+        // it would fire the purchase at checkout. A cancellation still goes through.
+        if (in_array($old_status, ['pending', 'checkout-draft'], true) && $new_status !== 'cancelled') {
             return;
         }
 

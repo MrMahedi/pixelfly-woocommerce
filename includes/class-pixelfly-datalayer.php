@@ -845,6 +845,21 @@ class PixelFly_DataLayer
             $data_layer['user_data']['new_customer'] = $is_new_customer ? 'true' : 'false';
         }
 
+        // The same customer under the names PixelFly's sGTM web container reads
+        // (user_data.billing_email / phone_number / first_name / last_name), so the
+        // purchase it sends to sGTM, and a held COD order, keep the customer.
+        $aliases = array_filter([
+            'billing_email' => strtolower((string) $order->get_billing_email()),
+            'phone_number' => preg_replace('/[^0-9+]/', '', (string) $order->get_billing_phone()),
+            'first_name' => $order->get_billing_first_name(),
+            'last_name' => $order->get_billing_last_name(),
+        ], static function ($v) {
+            return $v !== null && $v !== '';
+        });
+        if ($aliases) {
+            $data_layer['user_data'] = array_merge($aliases, $data_layer['user_data'] ?? []);
+        }
+
         // Click IDs for sGTM COD hold + Google Ads / Meta attribution
         $click_ids = PixelFly_UTM_Capture::get_click_ids_for_order($order);
         foreach (['gclid', 'fbclid'] as $click_key) {
