@@ -4,7 +4,7 @@ Tags: server side tracking, sgtm, gtm datalayer, conversion tracking, consent mo
 Requires at least: 6.0
 Tested up to: 6.4
 Requires PHP: 7.4
-Stable tag: 1.3.5
+Stable tag: 1.3.6
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -108,6 +108,9 @@ Yes. Consent Mode V2 operates at the browser level — consent signals are carri
 5. Custom script loader setup
 
 == Changelog ==
+
+= 1.3.6 =
+* COD auto-confirm: Shipped and Delivered (statuses added by courier plugins) can now confirm the order and send the purchase, alongside Completed
 
 = 1.3.5 =
 * Fix: with the COD auto-confirm webhook on, a COD order was "confirmed" the moment it was placed (WooCommerce sets it to Processing at checkout), so the purchase fired at checkout. That checkout status no longer counts, and the default confirming status is now Completed
