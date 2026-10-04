@@ -446,15 +446,13 @@ $all_roles = wp_roles()->get_names();
                 <tr class="cod-webhook-setting">
                     <th scope="row"><?php esc_html_e('Webhook on Status', 'pixelfly'); ?></th>
                     <td>
-                        <?php foreach ($order_statuses as $status => $label): ?>
-                            <?php if (in_array($status, ['processing', 'shipped', 'delivered', 'completed', 'cancelled'], true)): ?>
-                                <label style="display: block; margin-bottom: 5px;">
-                                    <input type="checkbox" name="pixelfly_cod_webhook_statuses[]" value="<?php echo esc_attr($status); ?>" <?php checked(in_array($status, (array) $cod_webhook_statuses, true)); ?>>
-                                    <?php echo esc_html($label); ?>
-                                </label>
-                            <?php endif; ?>
+                        <?php foreach (PixelFly_COD_Protection::webhook_status_choices($order_statuses) as $status => $label): ?>
+                            <label style="display: block; margin-bottom: 5px;">
+                                <input type="checkbox" name="pixelfly_cod_webhook_statuses[]" value="<?php echo esc_attr($status); ?>" <?php checked(in_array($status, (array) $cod_webhook_statuses, true)); ?>>
+                                <?php echo esc_html($label); ?>
+                            </label>
                         <?php endforeach; ?>
-                        <p class="description"><?php esc_html_e('Completed, Shipped or Delivered (added by courier plugins) confirms the order and sends the purchase; Cancelled rejects it. Tick Processing only if your team moves orders to Processing after confirming them: the status WooCommerce sets while the order is placed never counts.', 'pixelfly'); ?></p>
+                        <p class="description"><?php esc_html_e('Every status your store has that PixelFly understands is listed, including ones your courier plugin added. Completed, Shipped, Delivered and the like confirm the order and send the purchase; Cancelled, Refunded and Returned reject it. Tick Processing only if your team moves orders to Processing after confirming them: the status WooCommerce sets while the order is placed never counts.', 'pixelfly'); ?></p>
                     </td>
                 </tr>
             </table>

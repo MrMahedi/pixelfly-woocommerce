@@ -4,7 +4,7 @@ Tags: server side tracking, sgtm, gtm datalayer, conversion tracking, consent mo
 Requires at least: 6.0
 Tested up to: 6.4
 Requires PHP: 7.4
-Stable tag: 1.3.6
+Stable tag: 1.3.7
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -108,6 +108,10 @@ Yes. Consent Mode V2 operates at the browser level — consent signals are carri
 5. Custom script loader setup
 
 == Changelog ==
+
+= 1.3.7 =
+* COD auto-confirm now lists every order status your store has that PixelFly understands, including ones added by courier plugins (Shipped, Dispatched, Out for delivery, In transit, Picked up, Returned, and more), instead of a fixed five
+* A status is matched the same whether WooCommerce reports it as `shipped` or `wc-shipped`
 
 = 1.3.6 =
 * COD auto-confirm: Shipped and Delivered (statuses added by courier plugins) can now confirm the order and send the purchase, alongside Completed

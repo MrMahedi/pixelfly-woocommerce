@@ -20,6 +20,48 @@ class PixelFly_COD_Protection
     public const MODE_GTM = 'gtm';
     public const MODE_PLUGIN_HOLD = 'plugin_hold';
 
+    /**
+     * Statuses PixelFly acts on. Mirrors CONFIRM_STATUSES / REJECT_STATUSES in
+     * CodProtectionService: a status outside these is ignored by the app, so
+     * offering it here would be a checkbox that silently does nothing.
+     */
+    public const CONFIRM_STATUSES = [
+        'confirmed', 'processing', 'completed', 'paid',
+        'shipped', 'order-shipped', 'dispatched', 'partially-shipped',
+        'delivered', 'out-for-delivery', 'in-transit', 'intransit',
+        'picked-up', 'ready-for-pickup',
+    ];
+
+    public const REJECT_STATUSES = [
+        'cancelled', 'canceled', 'failed', 'refunded', 'returned', 'trash',
+    ];
+
+    /**
+     * Order statuses worth offering as webhook triggers: whatever this store has
+     * registered — core or added by a courier plugin — that PixelFly understands.
+     * `failed` and `trash` are left out; they are not a merchant decision.
+     *
+     * @param  array<string, string>  $statuses  slug => label, `wc-` already stripped
+     * @return array<string, string>
+     */
+    public static function webhook_status_choices(array $statuses): array
+    {
+        $allowed = array_diff(
+            array_merge(self::CONFIRM_STATUSES, self::REJECT_STATUSES),
+            ['failed', 'trash']
+        );
+
+        $out = [];
+        foreach ($statuses as $slug => $label) {
+            $normalized = str_replace('_', '-', strtolower((string) $slug));
+            if (in_array($normalized, $allowed, true)) {
+                $out[$slug] = $label;
+            }
+        }
+
+        return $out;
+    }
+
     public function __construct()
     {
         add_action('woocommerce_checkout_order_processed', [$this, 'maybe_hold_order'], 20, 3);
