@@ -91,7 +91,9 @@ class PixelFly_COD_Protection
                 return true;
             }
 
-            return (bool) get_option('pixelfly_delayed_enabled', true);
+            // Off unless a stored value says otherwise: the option is missing
+            // only on a site that never ran activation, and there COD stays off.
+            return (bool) get_option('pixelfly_delayed_enabled', false);
         }
 
         return (bool) $stored;
@@ -119,7 +121,7 @@ class PixelFly_COD_Protection
             return false;
         }
 
-        return self::get_mode() === self::MODE_LEGACY && get_option('pixelfly_delayed_enabled', true);
+        return self::get_mode() === self::MODE_LEGACY && get_option('pixelfly_delayed_enabled', false);
     }
 
     /**

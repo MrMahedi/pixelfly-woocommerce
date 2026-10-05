@@ -1,0 +1,5 @@
+# Keep repo-only files out of the distributed plugin zip, which is built with
+# `git archive` (zipping the folder once shipped .git to customers).
+/.gitattributes export-ignore
+/.gitignore    export-ignore
+/.github       export-ignore
