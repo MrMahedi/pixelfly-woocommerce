@@ -28,6 +28,14 @@ $cod_hold_url_preview = PixelFly_COD_Protection::hold_url();
 $sgtm_endpoint = get_option('pixelfly_sgtm_endpoint', '');
 $sgtm_measurement_id = get_option('pixelfly_sgtm_measurement_id', '');
 $sgtm_api_secret = get_option('pixelfly_sgtm_api_secret', '');
+$server_purchase_enabled = get_option('pixelfly_server_purchase_enabled', true);
+$server_purchase_route = get_option('pixelfly_server_purchase_route', 'auto');
+$server_purchase_route_now = PixelFly_API::server_purchase_route();
+$server_purchase_route_labels = [
+    'data_client' => __('your sGTM, /data (Data Client)', 'pixelfly'),
+    'sgtm' => __('your sGTM, /g/collect (GA4 Client)', 'pixelfly'),
+    'pixelfly' => __('the PixelFly proxy (/e)', 'pixelfly'),
+];
 $debug_mode = get_option('pixelfly_debug_mode', false);
 $event_logging = get_option('pixelfly_event_logging', false);
 $excluded_roles = get_option('pixelfly_excluded_roles', []);
@@ -114,6 +122,104 @@ $all_roles = wp_roles()->get_names();
                     </td>
                 </tr>
             </table>
+        </div>
+
+        <div class="pixelfly-card">
+            <h2><?php esc_html_e('Server-side Purchase', 'pixelfly'); ?></h2>
+
+            <table class="form-table">
+                <tr>
+                    <th scope="row"><?php esc_html_e('Send Purchase from Server', 'pixelfly'); ?></th>
+                    <td>
+                        <label>
+                            <input type="checkbox" name="pixelfly_server_purchase_enabled" value="1" <?php checked($server_purchase_enabled); ?>>
+                            <?php esc_html_e('Send every website order from WooCommerce itself', 'pixelfly'); ?>
+                        </label>
+                        <p class="description"><?php esc_html_e('Counts an order even when the shopper\'s browser never sends the purchase: the Facebook and Instagram apps on Android, ad blockers, a closed tab. Sent 5 minutes after the order is Processing, On hold or Completed; when the browser\'s own purchase reached PixelFly by then, PixelFly drops this copy, so GA4 and Meta still get the order once. COD orders under COD Order Protection are still sent when they are confirmed.', 'pixelfly'); ?></p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><?php esc_html_e('Send To', 'pixelfly'); ?></th>
+                    <td>
+                        <div class="pixelfly-firing-methods">
+                            <?php foreach ([
+                                'auto' => [__('Automatic (recommended)', 'pixelfly'), __('Your sGTM container when the sGTM Connection below is filled in, otherwise the PixelFly proxy.', 'pixelfly')],
+                                'data_client' => [__('sGTM (Data Client)', 'pixelfly'), __('POST /data on your sGTM. PixelFly\'s sGTM container has the Data Client; PixelFly\'s COD confirmations use the same path.', 'pixelfly')],
+                                'sgtm' => [__('sGTM (GA4 Client)', 'pixelfly'), __('/g/collect on your sGTM, read by the GA4 client. Needs the GA4 Measurement ID.', 'pixelfly')],
+                                'pixelfly' => [__('PixelFly (Proxy)', 'pixelfly'), __('PixelFly sends it to the Receivers (Meta, GA4, TikTok…) on your container. For Proxy containers.', 'pixelfly')],
+                            ] as $route_value => $route_text): ?>
+                                <label class="pixelfly-firing-method pixelfly-route-option <?php echo $server_purchase_route === $route_value ? 'active' : ''; ?>">
+                                    <input type="radio" name="pixelfly_server_purchase_route" value="<?php echo esc_attr($route_value); ?>" <?php checked($server_purchase_route, $route_value); ?>>
+                                    <div>
+                                        <strong><?php echo esc_html($route_text[0]); ?></strong>
+                                        <p class="description" style="margin: 2px 0 0;"><?php echo esc_html($route_text[1]); ?></p>
+                                    </div>
+                                </label>
+                            <?php endforeach; ?>
+                        </div>
+                        <p class="description" style="margin-top: 8px;">
+                            <?php esc_html_e('Sending to now:', 'pixelfly'); ?>
+                            <strong><?php echo esc_html($server_purchase_route_labels[$server_purchase_route_now] ?? $server_purchase_route_now); ?></strong>
+                            <?php esc_html_e('(saved settings)', 'pixelfly'); ?>
+                        </p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><?php esc_html_e('Counted Once', 'pixelfly'); ?></th>
+                    <td>
+                        <p class="description"><?php
+                            printf(
+                                /* translators: %s: example event id */
+                                esc_html__('PixelFly matches the two by order ID (transaction_id) and counts each order once. Both also carry event_id %s; if your browser tags come from another plugin (e.g. GTM4WP), set the event ID of its Meta Pixel Purchase and GA4 purchase tags to "purchase_" + the transaction ID as well, so Meta can match a browser purchase that arrives after the server copy.', 'pixelfly'),
+                                '<code>purchase_{order ID}</code>'
+                            );
+                        ?></p>
+                    </td>
+                </tr>
+            </table>
+
+            <!-- sGTM Connection: server purchases + legacy delayed events -->
+            <div id="pixelfly-sgtm-config" style="margin-top: 10px; padding: 15px; background: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 4px;">
+                <h3 style="margin-top: 0;"><?php esc_html_e('sGTM Connection', 'pixelfly'); ?></h3>
+                <table class="form-table" style="margin-top: 0;">
+                    <tr>
+                        <th scope="row">
+                            <label for="pixelfly_sgtm_endpoint"><?php esc_html_e('sGTM Endpoint URL', 'pixelfly'); ?></label>
+                        </th>
+                        <td>
+                            <input type="url" id="pixelfly_sgtm_endpoint" name="pixelfly_sgtm_endpoint" value="<?php echo esc_attr($sgtm_endpoint); ?>" class="regular-text" placeholder="https://sgtm.yourdomain.com">
+                            <p class="description"><?php esc_html_e('Your sGTM container on your own domain, e.g. https://server.yourdomain.com — the address your website tags send to. Leave empty for a Proxy container.', 'pixelfly'); ?></p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">
+                            <label for="pixelfly_sgtm_measurement_id"><?php esc_html_e('GA4 Measurement ID', 'pixelfly'); ?></label>
+                        </th>
+                        <td>
+                            <input type="text" id="pixelfly_sgtm_measurement_id" name="pixelfly_sgtm_measurement_id" value="<?php echo esc_attr($sgtm_measurement_id); ?>" class="regular-text" placeholder="G-XXXXXXXXXX">
+                            <p class="description"><?php esc_html_e('Your GA4 Measurement ID (starts with G-). Needed only for the GA4 client route (/g/collect); the Data Client route works without it.', 'pixelfly'); ?></p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">
+                            <label for="pixelfly_sgtm_api_secret"><?php esc_html_e('API Secret (Optional)', 'pixelfly'); ?></label>
+                        </th>
+                        <td>
+                            <input type="text" id="pixelfly_sgtm_api_secret" name="pixelfly_sgtm_api_secret" value="<?php echo esc_attr($sgtm_api_secret); ?>" class="regular-text" placeholder="<?php esc_attr_e('Enter your GA4 API secret', 'pixelfly'); ?>">
+                            <p class="description"><?php esc_html_e('Optional. Not required for /g/collect. Only needed if using /mp/collect endpoint.', 'pixelfly'); ?></p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"></th>
+                        <td>
+                            <button type="button" id="pixelfly-test-sgtm" class="button">
+                                <?php esc_html_e('Test sGTM Connection', 'pixelfly'); ?>
+                            </button>
+                            <span id="pixelfly-sgtm-test-result" style="margin-left: 10px;"></span>
+                        </td>
+                    </tr>
+                </table>
+            </div>
         </div>
         </div>
 
@@ -501,54 +607,12 @@ $all_roles = wp_roles()->get_names();
                         </div>
                         <p class="description" style="margin-top: 8px; color: #d63638;">
                             <strong><?php esc_html_e('Important:', 'pixelfly'); ?></strong>
-                            <?php esc_html_e('Select the method that matches your PixelFly container type. Mismatching may cause delayed purchase events to not reach all your analytics providers.', 'pixelfly'); ?>
+                            <?php esc_html_e('Select the method that matches your PixelFly container type. Mismatching may cause delayed purchase events to not reach all your analytics providers. The sGTM methods use the sGTM Connection on the API Configuration tab.', 'pixelfly'); ?>
                         </p>
                     </td>
                 </tr>
             </table>
 
-            <!-- sGTM Configuration (legacy delayed only) -->
-            <div id="pixelfly-sgtm-config" class="legacy-delayed-setting delayed-setting" style="<?php echo !in_array($delayed_firing_method, ['sgtm', 'data_client']) ? 'display:none;' : ''; ?> margin-top: 10px; padding: 15px; background: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 4px;">
-                <h3 style="margin-top: 0;"><?php esc_html_e('sGTM Configuration', 'pixelfly'); ?></h3>
-                <table class="form-table" style="margin-top: 0;">
-                    <tr>
-                        <th scope="row">
-                            <label for="pixelfly_sgtm_endpoint"><?php esc_html_e('sGTM Endpoint URL', 'pixelfly'); ?></label>
-                        </th>
-                        <td>
-                            <input type="url" id="pixelfly_sgtm_endpoint" name="pixelfly_sgtm_endpoint" value="<?php echo esc_attr($sgtm_endpoint); ?>" class="regular-text" placeholder="https://sgtm.yourdomain.com">
-                            <p class="description"><?php esc_html_e('Your server-side GTM container URL. Events will be sent to /g/collect endpoint.', 'pixelfly'); ?></p>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row">
-                            <label for="pixelfly_sgtm_measurement_id"><?php esc_html_e('GA4 Measurement ID', 'pixelfly'); ?></label>
-                        </th>
-                        <td>
-                            <input type="text" id="pixelfly_sgtm_measurement_id" name="pixelfly_sgtm_measurement_id" value="<?php echo esc_attr($sgtm_measurement_id); ?>" class="regular-text" placeholder="G-XXXXXXXXXX">
-                            <p class="description"><?php esc_html_e('Your GA4 Measurement ID (starts with G-).', 'pixelfly'); ?></p>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row">
-                            <label for="pixelfly_sgtm_api_secret"><?php esc_html_e('API Secret (Optional)', 'pixelfly'); ?></label>
-                        </th>
-                        <td>
-                            <input type="text" id="pixelfly_sgtm_api_secret" name="pixelfly_sgtm_api_secret" value="<?php echo esc_attr($sgtm_api_secret); ?>" class="regular-text" placeholder="<?php esc_attr_e('Enter your GA4 API secret', 'pixelfly'); ?>">
-                            <p class="description"><?php esc_html_e('Optional. Not required for /g/collect. Only needed if using /mp/collect endpoint.', 'pixelfly'); ?></p>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row"></th>
-                        <td>
-                            <button type="button" id="pixelfly-test-sgtm" class="button">
-                                <?php esc_html_e('Test sGTM Connection', 'pixelfly'); ?>
-                            </button>
-                            <span id="pixelfly-sgtm-test-result" style="margin-left: 10px;"></span>
-                        </td>
-                    </tr>
-                </table>
-            </div>
 
             <table class="form-table">
                 <tr class="legacy-delayed-setting delayed-setting">
@@ -948,20 +1012,18 @@ $all_roles = wp_roles()->get_names();
 
         // Toggle firing method config
         function toggleFiringMethod() {
-            var method = $('input[name="pixelfly_delayed_firing_method"]:checked').val();
-            var isSgtm = (method === 'sgtm' || method === 'data_client');
-            $('#pixelfly-sgtm-config').toggle(isSgtm);
-            // Measurement ID is only needed for GA4 Client (/g/collect), not Data Client (/data)
-            $('#pixelfly-sgtm-config').find('tr').has('#pixelfly_sgtm_measurement_id').toggle(method === 'sgtm');
-            $('#pixelfly-sgtm-config').find('tr').has('#pixelfly_sgtm_api_secret').toggle(method === 'sgtm');
-
-            // Update active class
-            $('.pixelfly-firing-method').removeClass('active');
+            // The sGTM Connection is always shown: server purchases use it too.
+            $('input[name="pixelfly_delayed_firing_method"]').closest('.pixelfly-firing-method').removeClass('active');
             $('input[name="pixelfly_delayed_firing_method"]:checked').closest('.pixelfly-firing-method').addClass('active');
         }
 
         $('input[name="pixelfly_delayed_firing_method"]').on('change', toggleFiringMethod);
         toggleFiringMethod();
+
+        $('input[name="pixelfly_server_purchase_route"]').on('change', function() {
+            $('.pixelfly-route-option').removeClass('active');
+            $(this).closest('.pixelfly-route-option').addClass('active');
+        });
 
         // Test sGTM connection
         $('#pixelfly-test-sgtm').on('click', function() {

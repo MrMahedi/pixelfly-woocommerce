@@ -144,6 +144,20 @@ class PixelFly_Admin
         ]);
         register_setting('pixelfly_settings', 'pixelfly_cod_webhook_statuses');
 
+        // Server-side purchase (PixelFly_Tracker)
+        register_setting('pixelfly_settings', 'pixelfly_server_purchase_enabled', [
+            'type' => 'boolean',
+            'default' => true,
+            'sanitize_callback' => static function ($value) {
+                return !empty($value) ? 1 : 0;
+            },
+        ]);
+        register_setting('pixelfly_settings', 'pixelfly_server_purchase_route', [
+            'sanitize_callback' => static function ($value) {
+                return in_array($value, ['auto', 'data_client', 'sgtm', 'pixelfly'], true) ? $value : 'auto';
+            },
+        ]);
+
         // sGTM settings
         register_setting('pixelfly_settings', 'pixelfly_sgtm_endpoint');
         register_setting('pixelfly_settings', 'pixelfly_sgtm_measurement_id');

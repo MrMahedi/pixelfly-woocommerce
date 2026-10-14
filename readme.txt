@@ -4,7 +4,7 @@ Tags: server side tracking, sgtm, gtm datalayer, conversion tracking, consent mo
 Requires at least: 6.0
 Tested up to: 6.4
 Requires PHP: 7.4
-Stable tag: 1.3.8
+Stable tag: 1.3.9
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -108,6 +108,19 @@ Yes. Consent Mode V2 operates at the browser level — consent signals are carri
 5. Custom script loader setup
 
 == Changelog ==
+
+= 1.3.9 =
+* Every website order is now sent from WooCommerce itself once it is Processing, On hold or Completed, so it counts even when the shopper's browser never sends the purchase (the Facebook and Instagram apps on Android, ad blockers, a closed tab, a payment page that never returns)
+* sGTM containers: that server purchase now goes to your sGTM (/data or /g/collect) instead of the PixelFly proxy, which never reached an sGTM container's tags. New "Server-side Purchase" settings on the API Configuration tab, where the sGTM Connection now lives
+* It is sent in the background 5 minutes after the order, with retries, never slowing checkout or the thank-you page, and only for website orders from the last 3 days: not staff-entered, REST API or subscription renewal orders, and not an unpaid "Pending payment" order
+* When the browser's purchase already reached PixelFly, PixelFly drops the server copy, so GA4 and Meta get each order once; PixelFly's own dashboard counts each order once either way (needs the PixelFly Worker of 2026-10-14 or later)
+* COD Order Protection is never bypassed: the server copy carries payment_method, and PixelFly never sends it for an order already held (from GTM, sGTM or this plugin) or for a COD order on a container with COD Order Protection on, so an unconfirmed COD order never reaches Meta or GA4
+* Server purchases use the order's saved _fbp, _fbc and GA4 client and session ID (now saved at checkout) instead of cookies, which a background send does not have, so GA4 puts the purchase in the shopper's own visit instead of "(not set)"
+* The GA4 session ID is read from both cookie formats gtag writes (GS1 and GS2), preferring the stream of your Measurement ID
+* With PixelFly's DataLayer turned off (another plugin such as GTM4WP owns it), PixelFly no longer pushes its own add-to-cart / cart events into the dataLayer, which made them fire twice
+* The /data payload matches PixelFly's COD confirmations (shopper IP and user agent, Meta and Google field names, UTMs and click IDs in page_location); events are marked "delayed" only when they really are
+* Legacy delayed purchases now work with the block checkout: its COD orders were never stored, so their purchase was never sent
+* UTM and click-ID capture in the browser now always runs: its script was attached to another one that was not registered yet, so WordPress dropped it and block-checkout orders could lose their campaign
 
 = 1.3.8 =
 * COD Order Protection stays off until you turn it on, even on a site where the setting was never saved: the fallback now reads as off instead of on

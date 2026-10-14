@@ -177,9 +177,40 @@ class PixelFly_UTM_Capture
             $dirty = true;
         }
 
+        // GA4 client and session id, so the server purchase (sent later, without the
+        // shopper's cookies) lands in the shopper's own GA4 visit, not "(not set)".
+        $ga_ids = [
+            '_pixelfly_ga_client_id' => PixelFly_User_Data::get_client_id(),
+            '_pixelfly_ga_session_id' => PixelFly_User_Data::get_session_id(),
+        ];
+        foreach ($ga_ids as $meta_key => $value) {
+            if ($value !== '') {
+                $order->update_meta_data($meta_key, $value);
+                $dirty = true;
+            }
+        }
+
         if ($dirty) {
             $order->save();
         }
+    }
+
+    /**
+     * UTMs saved on the order plus its click IDs (see get_click_ids_for_order()).
+     */
+    public static function get_attribution_for_order($order): array
+    {
+        $out = [];
+        if ($order instanceof WC_Order) {
+            foreach (['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'] as $field) {
+                $value = $order->get_meta('_' . $field);
+                if (is_string($value) && $value !== '') {
+                    $out[$field] = $value;
+                }
+            }
+        }
+
+        return array_merge($out, self::get_click_ids_for_order($order));
     }
 
     /**
@@ -292,6 +323,11 @@ class PixelFly_UTM_Capture
             })();
         ';
 
-        wp_add_inline_script('pixelfly-tracker', $script);
+        // Its own handle, like Cookie Keeper's. It was attached to pixelfly-tracker, which
+        // is registered after this runs (or not at all with PixelFly's DataLayer off), and
+        // WordPress drops inline code for a handle that does not exist yet.
+        wp_register_script('pixelfly-utm-capture', false, [], PIXELFLY_VERSION, true);
+        wp_enqueue_script('pixelfly-utm-capture');
+        wp_add_inline_script('pixelfly-utm-capture', $script);
     }
 }

@@ -34,6 +34,10 @@ class PixelFly_Delayed
 
         // Hook into order creation
         add_action('woocommerce_checkout_order_processed', [$this, 'maybe_store_pending_event'], 10, 3);
+        // The block checkout (the default for new stores) doesn't run the hook above. Without
+        // this its COD orders were never stored, and — their browser purchase skipped as
+        // "delayed" — never sent at all.
+        add_action('woocommerce_store_api_checkout_order_processed', [$this, 'maybe_store_pending_block_order'], 10, 1);
 
         // Hook into order status changes
         add_action('woocommerce_order_status_changed', [$this, 'maybe_fire_pending_event'], 10, 4);
@@ -56,9 +60,19 @@ class PixelFly_Delayed
     /**
      * Store pending event when order is created
      */
+    public function maybe_store_pending_block_order($order)
+    {
+        if ($order instanceof WC_Order) {
+            $this->maybe_store_pending_event($order->get_id(), [], $order);
+        }
+    }
+
     public function maybe_store_pending_event($order_id, $posted_data, $order)
     {
-        if (!$this->is_enabled_for_order($order)) {
+        if (!$order instanceof WC_Order) {
+            $order = wc_get_order($order_id);
+        }
+        if (!$order || !$this->is_enabled_for_order($order) || $order->get_meta('_pixelfly_pending_event_id')) {
             return;
         }
 
@@ -182,7 +196,9 @@ class PixelFly_Delayed
             $item_ids[] = $item_data['item_id'];
         }
 
-        // User data with Facebook IDs from cookies
+        $browser = PixelFly_User_Data::get_browser_ids_for_order($order);
+
+        // User data with the shopper's Facebook / GA ids (saved on the order, else cookies)
         $user_data = [
             'fn' => $order->get_billing_first_name(),
             'ln' => $order->get_billing_last_name(),
@@ -198,19 +214,10 @@ class PixelFly_Delayed
                 $order->get_billing_phone(),
                 $order->get_billing_country()
             ),
-            'fbp' => isset($_COOKIE['_fbp']) ? sanitize_text_field($_COOKIE['_fbp']) : null,
-            'fbc' => isset($_COOKIE['_fbc']) ? sanitize_text_field($_COOKIE['_fbc']) : null,
+            'fbp' => $browser['fbp'] ?? null,
+            'fbc' => $browser['fbc'] ?? null,
+            'ga_client_id' => $browser['ga_client_id'] ?? null,
         ];
-
-        // Add GA Client ID from _ga cookie
-        // Format: GA1.1.XXXXXXXXXX.XXXXXXXXXX - client ID is last two parts
-        if (isset($_COOKIE['_ga'])) {
-            $ga_cookie = sanitize_text_field($_COOKIE['_ga']);
-            $parts = explode('.', $ga_cookie);
-            if (count($parts) >= 4) {
-                $user_data['ga_client_id'] = $parts[2] . '.' . $parts[3];
-            }
-        }
 
         // Filter empty values
         $user_data = array_filter($user_data);

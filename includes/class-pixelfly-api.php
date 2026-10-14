@@ -322,12 +322,65 @@ class PixelFly_API
     }
 
     /**
+     * Where the WooCommerce server purchase goes:
+     * - 'pixelfly'    — PixelFly proxy (/e), fanned out to the Receivers set on the container
+     * - 'data_client' — the store's sGTM /data (Data Client, as PixelFly's COD confirmations)
+     * - 'sgtm'        — the store's sGTM /g/collect (GA4 client; needs the Measurement ID)
+     *
+     * `auto` picks the sGTM route whenever an sGTM endpoint is set — /e never reaches an
+     * sGTM container's tags — following the delayed firing method between the two.
+     *
+     * @return string
+     */
+    public static function server_purchase_route()
+    {
+        $route = get_option('pixelfly_server_purchase_route', 'auto');
+        $has_endpoint = trim((string) get_option('pixelfly_sgtm_endpoint', '')) !== '';
+        $has_measurement_id = trim((string) get_option('pixelfly_sgtm_measurement_id', '')) !== '';
+
+        if ($route === 'pixelfly' || !$has_endpoint) {
+            return 'pixelfly';
+        }
+        if ($route === 'data_client') {
+            return 'data_client';
+        }
+        if ($route === 'sgtm') {
+            return $has_measurement_id ? 'sgtm' : 'data_client';
+        }
+
+        return get_option('pixelfly_delayed_firing_method', 'sgtm') === 'sgtm' && $has_measurement_id
+            ? 'sgtm'
+            : 'data_client';
+    }
+
+    /**
+     * Send the WooCommerce server purchase along server_purchase_route().
+     *
+     * @param array $event_data Purchase in PixelFly format
+     * @param int|float|null $timeout
+     * @return bool
+     */
+    public function send_server_purchase($event_data, $timeout = null)
+    {
+        switch (self::server_purchase_route()) {
+            case 'data_client':
+                return $this->send_event_to_data_client($event_data, $timeout);
+            case 'sgtm':
+                return $this->send_event_to_sgtm($event_data, $timeout);
+            default:
+                // send_event() returns the decoded body on success, which may be empty.
+                return $this->send_event($event_data, $timeout) !== false;
+        }
+    }
+
+    /**
      * Send event to sGTM via GA4 Measurement Protocol
      *
      * @param array $event_data Stored event data (PixelFly format)
+     * @param int|float|null $timeout
      * @return bool Success status
      */
-    public function send_event_to_sgtm($event_data)
+    public function send_event_to_sgtm($event_data, $timeout = null)
     {
         $endpoint = get_option('pixelfly_sgtm_endpoint', '');
         $measurement_id = get_option('pixelfly_sgtm_measurement_id', '');
@@ -342,7 +395,7 @@ class PixelFly_API
 
         // Send as POST with empty body (gtag.js style)
         $response = wp_remote_post($url, [
-            'timeout' => 10,
+            'timeout' => $timeout !== null ? $timeout : 10,
             'headers' => [
                 'Content-Type' => 'text/plain',
             ],
@@ -408,19 +461,7 @@ class PixelFly_API
     {
         $user_data = $event_data['user_data'] ?? [];
         $items = $event_data['items'] ?? [];
-
-        // Generate client_id from fbp or create deterministic one
-        $client_id = null;
-        if (!empty($user_data['fbp'])) {
-            $parts = explode('.', $user_data['fbp']);
-            if (count($parts) >= 4) {
-                $client_id = $parts[2] . '.' . $parts[3];
-            }
-        }
-        if (!$client_id) {
-            $random = crc32($user_data['ph'] ?? $event_data['transaction_id'] ?? uniqid());
-            $client_id = abs($random) . '.' . ($event_data['event_time'] ?? time());
-        }
+        $client_id = self::client_id_for($event_data);
 
         // Base parameters (gtag.js format)
         $params = [
@@ -438,9 +479,26 @@ class PixelFly_API
             $params['ep.event_id'] = $event_data['event_id'];
         }
 
-        // Mark as delayed/server-side event (for sGTM to detect and prioritize server data)
-        $params['ep.is_delayed'] = 'true';
+        // Server-side event; "delayed" only for a COD/manual order fired on confirmation.
+        if (!empty($event_data['context']['is_delayed'])) {
+            $params['ep.is_delayed'] = 'true';
+        }
         $params['ep.data_source'] = 'server';
+        // The shopper's GA4 session, so the purchase is not a "(not set)" visit.
+        if (!empty($user_data['ga_session_id'])) {
+            $params['sid'] = $user_data['ga_session_id'];
+        }
+        // The WooCommerce server copy PixelFly drops when the browser purchase arrived.
+        if (!empty($event_data['pf_server_purchase'])) {
+            $params['ep.pf_server_purchase'] = '1';
+        }
+        // What COD Order Protection's triggers and the Worker key on.
+        if (!empty($event_data['payment_method'])) {
+            $params['ep.payment_method'] = $event_data['payment_method'];
+        }
+        if (!empty($event_data['pf_cod_order'])) {
+            $params['ep.pf_cod_order'] = '1';
+        }
 
         // Action source for Facebook CAPI (website, physical_store, phone_call, chat)
         $action_source = $event_data['action_source'] ?? 'website';
@@ -656,15 +714,189 @@ class PixelFly_API
     }
 
     /**
+     * The shopper's GA4 client id, so GA4 joins a server event to their visits: the one
+     * saved on the order, else one derived from _fbp, else a stable one for the order.
+     *
+     * @param array $event_data
+     * @return string
+     */
+    private static function client_id_for($event_data)
+    {
+        $user_data = $event_data['user_data'] ?? [];
+        $ga_client_id = isset($user_data['ga_client_id']) ? (string) $user_data['ga_client_id'] : '';
+        if (preg_match('/^\d+\.\d+$/', $ga_client_id)) {
+            return $ga_client_id;
+        }
+        if (!empty($user_data['fbp'])) {
+            $parts = explode('.', $user_data['fbp']);
+            if (count($parts) >= 4) {
+                return $parts[2] . '.' . $parts[3];
+            }
+        }
+        $random = abs(crc32($user_data['ph'] ?? $event_data['transaction_id'] ?? uniqid()));
+        return $random . '.' . ($event_data['event_time'] ?? time());
+    }
+
+    /**
+     * Every UTM and click ID the event carries, from context.utm (where both purchase
+     * builders store the order's attribution) or the event root.
+     *
+     * @param array $event_data
+     * @return array<string, string>
+     */
+    private static function attribution_for($event_data)
+    {
+        $keys = [
+            'gclid', 'fbclid', 'ttclid', 'msclkid', 'wbraid', 'gbraid', 'li_fat_id', 'sccid', 'dclid',
+            'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term',
+        ];
+        $utm = $event_data['context']['utm'] ?? [];
+        $out = [];
+        foreach ($keys as $key) {
+            $value = $utm[$key] ?? ($event_data[$key] ?? null);
+            if (is_string($value) && trim($value) !== '') {
+                $out[$key] = trim($value);
+            }
+        }
+        return $out;
+    }
+
+    /**
+     * The order URL with its attribution in the query string: Google Ads' sGTM tag reads
+     * click IDs from page_location, not from separate fields.
+     *
+     * @param string $url
+     * @param array<string, string> $params
+     * @return string
+     */
+    private static function url_with_attribution($url, array $params)
+    {
+        $parts = is_string($url) && $url !== '' ? wp_parse_url($url) : false;
+        if ($params === [] || empty($parts['host'])) {
+            return (string) $url;
+        }
+
+        $query = [];
+        if (!empty($parts['query'])) {
+            parse_str($parts['query'], $query);
+        }
+        $query = array_merge($query, $params);
+
+        return ($parts['scheme'] ?? 'https') . '://' . $parts['host']
+            . (isset($parts['port']) ? ':' . $parts['port'] : '')
+            . ($parts['path'] ?? '/')
+            . '?' . http_build_query($query)
+            . (isset($parts['fragment']) ? '#' . $parts['fragment'] : '');
+    }
+
+    /**
+     * The /data body. Same fields PixelFly's own COD confirmations send to the Data
+     * Client (ConversionFirerService::buildDataClientPayload in the app), so every tag in
+     * the container reads this purchase the way it reads a confirmed COD order.
+     *
+     * @param array $event_data Event in PixelFly format
+     * @return array
+     */
+    public static function build_data_client_payload($event_data)
+    {
+        $user_data = $event_data['user_data'] ?? [];
+        $context = $event_data['context'] ?? [];
+        $is_delayed = !empty($context['is_delayed']);
+        $attribution = self::attribution_for($event_data);
+        $source_url = self::url_with_attribution($event_data['event_source_url'] ?? '', $attribution);
+        $ip = $context['ip'] ?? ($user_data['client_ip_address'] ?? null);
+        $user_agent = $context['user_agent'] ?? ($user_data['client_user_agent'] ?? null);
+
+        // Meta refuses events dated more than 7 days back.
+        $time = (int) ($event_data['event_time'] ?? 0);
+        $now = time();
+
+        $payload = [
+            'event'            => $event_data['event'] ?? 'custom_event',
+            'event_id'         => $event_data['event_id'] ?? '',
+            'event_time'       => ($time > $now - 7 * DAY_IN_SECONDS && $time < $now + 300) ? $time : $now,
+            'client_id'        => self::client_id_for($event_data),
+            // sGTM's GA4 tag puts the purchase in this session (the shopper's visit).
+            'ga_session_id'    => $user_data['ga_session_id'] ?? null,
+            'value'            => isset($event_data['value']) ? (float) $event_data['value'] : null,
+            'currency'         => $event_data['currency'] ?? '',
+            'action_source'    => $event_data['action_source'] ?? 'website',
+            'event_source_url' => $source_url,
+            'page_location'    => $source_url,
+            'transaction_id'   => $event_data['transaction_id'] ?? '',
+            'is_delayed'       => $is_delayed,
+            'delayed_reason'   => $is_delayed ? ($context['delayed_reason'] ?? null) : null,
+            'data_source'      => 'server',
+            'pf_server_purchase' => !empty($event_data['pf_server_purchase']) ? true : null,
+            'payment_method'   => $event_data['payment_method'] ?? null,
+            'pf_cod_order'     => !empty($event_data['pf_cod_order']) ? true : null,
+            // Without these the Data Client fills in this web server's IP and user agent.
+            'ip_override'      => $ip,
+            'user_agent'       => $user_agent,
+        ];
+
+        $phone = !empty($user_data['ph'])
+            ? PixelFly_User_Data::normalize_phone($user_data['ph'], $user_data['country'] ?? '')
+            : '';
+        $customer = array_filter([
+            'em'                => $user_data['em'] ?? null,
+            'ph'                => $phone ?: null,
+            'fn'                => $user_data['fn'] ?? null,
+            'ln'                => $user_data['ln'] ?? null,
+            'ct'                => $user_data['ct'] ?? null,
+            'st'                => $user_data['st'] ?? null,
+            'zp'                => $user_data['zp'] ?? null,
+            'country'           => $user_data['country'] ?? null,
+            'fbp'               => $user_data['fbp'] ?? null,
+            'fbc'               => $user_data['fbc'] ?? null,
+            'external_id'       => $user_data['external_id'] ?? null,
+            'client_ip_address' => $ip,
+            'client_user_agent' => $user_agent,
+            // Also under the names standard sGTM tags read (Meta's CAPI tag, GA4, Google Ads).
+            'email_address'     => $user_data['em'] ?? null,
+            'phone_number'      => $phone ? '+' . $phone : null,
+            'address'           => array_filter([
+                'first_name' => $user_data['fn'] ?? null,
+                'last_name'  => $user_data['ln'] ?? null,
+            ]) ?: null,
+        ]);
+        if ($customer) {
+            $payload['user_data'] = $customer;
+        }
+        if (!empty($user_data['external_id'])) {
+            $payload['x-fb-ud-external_id'] = $user_data['external_id'];
+        }
+        if (!empty($user_data['fbp'])) {
+            $payload['fbp'] = $user_data['fbp'];
+            $payload['x-fb-ck-fbp'] = $user_data['fbp'];
+        }
+        if (!empty($user_data['fbc'])) {
+            $payload['fbc'] = $user_data['fbc'];
+            $payload['x-fb-ck-fbc'] = $user_data['fbc'];
+        }
+        if (!empty($event_data['items'])) {
+            $payload['items'] = $event_data['items'];
+        }
+        foreach ($attribution as $key => $value) {
+            $payload[$key] = $value;
+        }
+
+        return array_filter($payload, static function ($v) {
+            return $v !== null && $v !== '';
+        });
+    }
+
+    /**
      * Send event to sGTM via Stape Data Client (/data endpoint)
      *
      * Posts simple JSON directly to {sgtm_endpoint}/data.
      * The Stape Data Client in the GTM server container handles field mapping automatically.
      *
      * @param array $event_data Stored event data (PixelFly format)
+     * @param int|float|null $timeout
      * @return bool Success status
      */
-    public function send_event_to_data_client($event_data)
+    public function send_event_to_data_client($event_data, $timeout = null)
     {
         $endpoint = get_option('pixelfly_sgtm_endpoint', '');
 
@@ -673,71 +905,12 @@ class PixelFly_API
             return false;
         }
 
-        $user_data = $event_data['user_data'] ?? [];
-        $items     = $event_data['items'] ?? [];
-
-        // Derive client_id from fbp cookie (same format GA4 uses: timestamp.random)
-        // This links the server event to the user's existing GA4 session.
-        $client_id = null;
-        if (!empty($user_data['fbp'])) {
-            $parts = explode('.', $user_data['fbp']);
-            if (count($parts) >= 4) {
-                $client_id = $parts[2] . '.' . $parts[3];
-            }
-        }
-        if (!$client_id) {
-            $random = abs(crc32($user_data['ph'] ?? $event_data['transaction_id'] ?? uniqid()));
-            $client_id = $random . '.' . ($event_data['event_time'] ?? time());
-        }
-
-        // Build the JSON payload for the Stape Data Client
-        $payload = [
-            'event'      => $event_data['event'] ?? 'custom_event',
-            'event_id'   => $event_data['event_id'] ?? '',
-            'event_time' => $event_data['event_time'] ?? time(),
-            'client_id'  => $client_id,
-            'value'      => isset($event_data['value']) ? (float) $event_data['value'] : null,
-            'currency'   => $event_data['currency'] ?? '',
-            'action_source'     => $event_data['action_source'] ?? 'website',
-            'event_source_url'  => $event_data['event_source_url'] ?? '',
-            'transaction_id'    => $event_data['transaction_id'] ?? '',
-            'is_delayed'        => true,
-            'data_source'       => 'server',
-        ];
-
-        // User data
-        if (!empty($user_data)) {
-            $payload['user_data'] = array_filter([
-                'em'          => $user_data['em'] ?? null,
-                'ph'          => $user_data['ph'] ?? null,
-                'fn'          => $user_data['fn'] ?? null,
-                'ln'          => $user_data['ln'] ?? null,
-                'ct'          => $user_data['ct'] ?? null,
-                'st'          => $user_data['st'] ?? null,
-                'zp'          => $user_data['zp'] ?? null,
-                'country'     => $user_data['country'] ?? null,
-                'client_ip_address' => $user_data['client_ip_address'] ?? null,
-                'client_user_agent' => $user_data['client_user_agent'] ?? null,
-                'fbc'         => $user_data['fbc'] ?? null,
-                'fbp'         => $user_data['fbp'] ?? null,
-                'external_id' => $user_data['external_id'] ?? null,
-            ]);
-        }
-
-        // Items / products
-        if (!empty($items)) {
-            $payload['items'] = $items;
-        }
-
-        // Remove null / empty-string values from top level
-        $payload = array_filter($payload, function ($v) {
-            return $v !== null && $v !== '';
-        });
+        $payload = self::build_data_client_payload($event_data);
 
         $url = rtrim($endpoint, '/') . '/data';
 
         $response = wp_remote_post($url, [
-            'timeout' => 10,
+            'timeout' => $timeout !== null ? $timeout : 10,
             'headers' => [
                 'Content-Type' => 'application/json',
             ],

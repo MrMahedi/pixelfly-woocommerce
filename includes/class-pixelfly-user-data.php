@@ -300,6 +300,29 @@ class PixelFly_User_Data
     }
 
     /**
+     * The shopper's browser ids for an order: _fbp, _fbc and the GA4 client id saved on it
+     * at checkout, else the live cookies. The order wins — a server purchase is sent in
+     * the background, where there are no shopper cookies at all.
+     *
+     * @param WC_Order $order
+     * @return array{fbp?: string, fbc?: string, ga_client_id?: string, ga_session_id?: string}
+     */
+    public static function get_browser_ids_for_order($order)
+    {
+        $saved = static function ($key) use ($order) {
+            $value = $order instanceof WC_Order ? $order->get_meta($key) : '';
+            return is_string($value) ? trim($value) : '';
+        };
+
+        return array_filter([
+            'fbp' => $saved('_fbp') ?: self::get_fbp(),
+            'fbc' => $saved('_fbc') ?: self::get_fbc(),
+            'ga_client_id' => $saved('_pixelfly_ga_client_id') ?: self::get_client_id(),
+            'ga_session_id' => $saved('_pixelfly_ga_session_id') ?: self::get_session_id(),
+        ]);
+    }
+
+    /**
      * Get Google Analytics client ID
      */
     public static function get_client_id()
@@ -316,20 +339,40 @@ class PixelFly_User_Data
     }
 
     /**
-     * Get session ID
+     * GA4 session id from the _ga_<stream> cookie, preferring the stream of the configured
+     * Measurement ID when a site carries more than one.
      */
     public static function get_session_id()
     {
-        // Try to get from GA4 session cookie
-        foreach ($_COOKIE as $name => $value) {
-            if (strpos($name, '_ga_') === 0) {
-                $parts = explode('.', $value);
-                if (count($parts) >= 3) {
-                    return $parts[2];
+        $cookies = $_COOKIE;
+        $measurement_id = (string) get_option('pixelfly_sgtm_measurement_id', '');
+        $preferred = '_ga_' . preg_replace('/^G-/i', '', $measurement_id);
+        if ($measurement_id !== '' && isset($cookies[$preferred])) {
+            $cookies = [$preferred => $cookies[$preferred]] + $cookies;
+        }
+
+        foreach ($cookies as $name => $value) {
+            if (strpos((string) $name, '_ga_') === 0) {
+                $session_id = self::ga_session_id_from_cookie((string) $value);
+                if ($session_id !== '') {
+                    return $session_id;
                 }
             }
         }
         return '';
+    }
+
+    /**
+     * Session id from a GA4 session cookie value, in either format gtag writes:
+     * GS1.1.<session>.<count>… or GS2.1.s<session>$o<count>…
+     *
+     * @param string $value
+     * @return string
+     */
+    public static function ga_session_id_from_cookie($value)
+    {
+        $parts = explode('.', sanitize_text_field($value));
+        return isset($parts[2]) && preg_match('/^s?(\d{6,})/', $parts[2], $m) ? $m[1] : '';
     }
 
     /**

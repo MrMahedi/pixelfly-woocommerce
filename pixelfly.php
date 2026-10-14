@@ -4,7 +4,7 @@
  * Plugin Name: PixelFly – Server Side Tracking | GTM DataLayer | Delayed Purchase | Consent V2 | Custom Loader
  * Plugin URI: https://pixelfly.io
  * Description: Server-side conversion tracking via sGTM or proxy, GTM DataLayer events, delayed purchase events for COD orders, Consent Mode V2, and custom script loader to bypass ad blockers.
- * Version: 1.3.8
+ * Version: 1.3.9
  * Author: PixelFly
  * Author URI: https://pixelfly.io
  * Text Domain: pixelfly
@@ -22,7 +22,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Plugin constants
-define('PIXELFLY_VERSION', '1.3.8');
+define('PIXELFLY_VERSION', '1.3.9');
 define('PIXELFLY_PLUGIN_FILE', __FILE__);
 define('PIXELFLY_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('PIXELFLY_PLUGIN_URL', plugin_dir_url(__FILE__));
@@ -229,6 +229,8 @@ final class PixelFly_WooCommerce
         add_option('pixelfly_api_key', '');
         add_option('pixelfly_endpoint', 'https://track.pixelfly.io/e');
         add_option('pixelfly_datalayer_enabled', true);
+        add_option('pixelfly_server_purchase_enabled', true);
+        add_option('pixelfly_server_purchase_route', 'auto');
         // Off by default — COD Order Protection is opt-in. add_option() only
         // writes on a fresh install; existing sites keep whatever value they
         // already have, so this doesn't change anyone currently relying on it.
@@ -255,6 +257,11 @@ final class PixelFly_WooCommerce
     public function deactivate()
     {
         wp_clear_scheduled_hook('pixelfly_send_server_purchase');
+        // Server purchases queued in Action Scheduler: with the plugin off nothing would
+        // run them, and Action Scheduler would log each one as failed.
+        if (function_exists('as_unschedule_all_actions')) {
+            as_unschedule_all_actions('pixelfly_send_server_purchase');
+        }
         flush_rewrite_rules();
     }
 
